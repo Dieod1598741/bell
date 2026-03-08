@@ -1,5 +1,4 @@
 /**세션 관리 (프론트엔드) - 백엔드와 로컬 저장소를 공유하므로 Firebase 세션은 더 이상 필요하지 않음*/
-
 export async function setCurrentSession(userId) {
   console.log('[Session] 세션 설정 완료 (로컬):', userId)
   return { success: true }

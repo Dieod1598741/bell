@@ -21,6 +21,14 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
           
+      - name: Create .env from secrets
+        run: |
+          echo "SUPABASE_DB_HOST=${{ secrets.SUPABASE_DB_HOST }}" > backend/.env
+          echo "SUPABASE_DB_NAME=${{ secrets.SUPABASE_DB_NAME }}" >> backend/.env
+          echo "SUPABASE_DB_USER=${{ secrets.SUPABASE_DB_USER }}" >> backend/.env
+          echo "SUPABASE_DB_PASSWORD=${{ secrets.SUPABASE_DB_PASSWORD }}" >> backend/.env
+          echo "SUPABASE_DB_PORT=${{ secrets.SUPABASE_DB_PORT }}" >> backend/.env
+          
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -62,6 +70,14 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install pyinstaller
+          
+      - name: Create .env from secrets
+        run: |
+          echo "SUPABASE_DB_HOST=${{ secrets.SUPABASE_DB_HOST }}" > backend/.env
+          echo "SUPABASE_DB_NAME=${{ secrets.SUPABASE_DB_NAME }}" >> backend/.env
+          echo "SUPABASE_DB_USER=${{ secrets.SUPABASE_DB_USER }}" >> backend/.env
+          echo "SUPABASE_DB_PASSWORD=${{ secrets.SUPABASE_DB_PASSWORD }}" >> backend/.env
+          echo "SUPABASE_DB_PORT=${{ secrets.SUPABASE_DB_PORT }}" >> backend/.env
           
       - name: Set up Node.js
         uses: actions/setup-node@v4

@@ -1,0 +1,5 @@
+name = "bell-landing"
+pages_build_output_dir = "dist"
+
+[vars]
+# Add environment variables here if needed
