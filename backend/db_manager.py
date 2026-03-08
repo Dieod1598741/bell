@@ -1,0 +1,114 @@
+import os
+import psycopg2
+from psycopg2 import pool
+from psycopg2.extras import RealDictCursor
+from dotenv import load_dotenv
+import threading
+
+# .env 파일 로드
+load_dotenv()
+
+class DBManager:
+    """PostgreSQL (Supabase) 관리를 위한 싱글톤 클래스"""
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super(DBManager, cls).__new__(cls)
+                cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self):
+        if self._initialized:
+            return
+            
+        self.host = os.getenv("SUPABASE_DB_HOST")
+        self.dbname = os.getenv("SUPABASE_DB_NAME", "postgres")
+        self.user = os.getenv("SUPABASE_DB_USER", "postgres")
+        self.password = os.getenv("SUPABASE_DB_PASSWORD")
+        self.port = os.getenv("SUPABASE_DB_PORT", "5432")
+        
+        try:
+            self.connection_pool = psycopg2.pool.SimpleConnectionPool(
+                1, 20,
+                host=self.host,
+                database=self.dbname,
+                user=self.user,
+                password=self.password,
+                port=self.port
+            )
+            print("[DB] Connection pool created successfully")
+            self._initialized = True
+        except Exception as e:
+            print(f"[DB] Error creating connection pool: {e}")
+            self.connection_pool = None
+
+    def get_connection(self):
+        if not self.connection_pool:
+            return None
+        return self.connection_pool.getconn()
+
+    def put_connection(self, conn):
+        if self.connection_pool:
+            self.connection_pool.putconn(conn)
+
+    def execute_query(self, query, params=None, fetch=True):
+        """쿼리 실행 (SELECT 등)"""
+        conn = self.get_connection()
+        if not conn:
+            return None
+            
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(query, params)
+                if fetch:
+                    result = cur.fetchall()
+                    return result
+                conn.commit()
+                return True
+        except Exception as e:
+            print(f"[DB] Query execution error: {e}")
+            conn.rollback()
+            return None
+        finally:
+            self.put_connection(conn)
+
+    def execute_one(self, query, params=None):
+        """단일 행 결과 반환"""
+        result = self.execute_query(query, params)
+        return result[0] if result else None
+
+    # --- User-related operations ---
+    
+    def get_user(self, user_id):
+        query = "SELECT * FROM users WHERE id = %s AND del_yn = 'n'"
+        return self.execute_one(query, (user_id,))
+
+    def update_user_status(self, user_id, status):
+        query = "UPDATE users SET user_status = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
+        return self.execute_query(query, (status, user_id), fetch=False)
+
+    def create_user(self, user_data):
+        columns = ', '.join(user_data.keys())
+        placeholders = ', '.join(['%s'] * len(user_data))
+        query = f"INSERT INTO users ({columns}) VALUES ({placeholders}) ON CONFLICT (id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP"
+        return self.execute_query(query, tuple(user_data.values()), fetch=False)
+
+    def get_unread_count(self, user_id):
+        """읽지 않은 메시지 및 알림 총 개수 반환"""
+        count = 0
+        try:
+            # 1. 채팅 읽지 않은 개수
+            chat_query = "SELECT COUNT(*) FROM chats WHERE target_user_id = %s AND read = false AND del_yn = 'n'"
+            chat_res = self.execute_one(chat_query, (user_id,))
+            if chat_res: count += chat_res['count']
+            
+            # 2. 인박스/공지 읽지 않은 개수
+            inbox_query = "SELECT COUNT(*) FROM inbox WHERE target_user_id = %s AND read = false AND del_yn = 'n'"
+            inbox_res = self.execute_one(inbox_query, (user_id,))
+            if inbox_res: count += inbox_res['count']
+        except Exception as e:
+            print(f"[DB] Error getting unread count: {e}")
+        return count
