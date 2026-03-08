@@ -47,7 +47,7 @@ export function watchUsers(callback, currentUserId = null) {
     }
   })
 
-  // Firebase onSnapshot처럼 unsubscribe 함수 반환
+  // SSE 업데이트 감시 (구독 취소 함수 반환)
   return unsubscribe
 }
 

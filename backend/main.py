@@ -232,23 +232,14 @@ gui_process.run_gui()
                 self.user_manager.save_user_status('offline')
                 print(f"[종료] 로컬 파일에 오프라인 상태 저장: {user_id}")
                 
-                # Firestore에 오프라인 상태 업데이트
+                # Supabase(PostgreSQL)에 오프라인 상태 업데이트
                 try:
-                    import firebase_admin
-                    from firebase_admin import firestore
-                    
-                    if not firebase_admin._apps:
-                        print("[종료] Firebase가 초기화되지 않았습니다.")
-                    else:
-                        db = firestore.client()
-                        user_ref = db.collection('users').document(user_id)
-                        user_ref.update({
-                            'user_status': 'offline',
-                            'connection_status': 'offline'
-                        })
-                        print(f"[종료] Firestore에 오프라인 상태 업데이트 완료: {user_id}")
-                except Exception as firestore_error:
-                    print(f"[종료] Firestore 상태 업데이트 실패: {firestore_error}")
+                    from db_manager import DBManager
+                    db = DBManager()
+                    db.update_user_status(user_id, 'offline')
+                    print(f"[종료] Supabase에 오프라인 상태 업데이트 완료: {user_id}")
+                except Exception as db_error:
+                    print(f"[종료] Supabase 상태 업데이트 실패: {db_error}")
         except Exception as e:
             print(f"[종료] 상태 설정 실패: {e}")
             import traceback

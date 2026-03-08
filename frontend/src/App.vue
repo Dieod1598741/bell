@@ -24,9 +24,6 @@ onMounted(async () => {
   // 자동 로그인 체크를 먼저 수행 (로그인 화면이 보이지 않도록)
   await checkAutoLogin()
   
-  // Firebase 초기화 대기
-  await new Promise(resolve => setTimeout(resolve, 300))
-  
   // 세션 복원
   await restoreSession()
   

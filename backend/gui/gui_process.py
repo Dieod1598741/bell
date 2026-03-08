@@ -345,7 +345,15 @@ class API:
             if not status:
                 return {"success": False, "error": "status가 필요합니다"}
             
+            # 1. 로컬 저장
             result = self.user_manager.save_user_status(status)
+            
+            # 2. DB 저장 (추가됨)
+            user_data = self.user_manager.get_user()
+            if user_data and user_data.get('id'):
+                self.db_manager.update_user_status(user_data.get('id'), status)
+                print(f"[API] DB 상태 업데이트 완료: {user_data.get('id')} -> {status}")
+            
             if result:
                 return {"success": True, "message": "상태 저장 완료"}
             else:

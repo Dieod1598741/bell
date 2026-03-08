@@ -76,8 +76,6 @@ import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
-
-// Firebase는 필수로 사용
 import { setCurrentSession } from '@/composables/useSession'
 
 const loginForm = ref({
@@ -308,28 +306,14 @@ const handleLogin = async () => {
     
     console.log('[Login] 로그인 시도:', userId)
     
-    // Firestore에서 사용자 확인
-    console.log('[Login] Firestore에서 사용자 조회 중...')
+    // 백엔드 API를 통해 사용자 유효성 확인
+    console.log('[Login] 사용자 정보 조회 중...')
     let user
     try {
-      // 타임아웃 설정 (10초로 증가)
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('타임아웃')), 10000)
-      )
-      user = await Promise.race([getUser(userId), timeoutPromise])
+      user = await getUser(userId)
     } catch (error) {
       console.error('[Login] 사용자 조회 오류:', error)
-      console.error('[Login] 에러 상세:', error.code, error.message, error.stack)
-      
-      if (error.message === '타임아웃') {
-        ElMessage.error('서버 연결 시간이 초과되었습니다. Firebase 설정과 보안 규칙을 확인해주세요.')
-      } else if (error.code === 'permission-denied') {
-        ElMessage.error('권한이 거부되었습니다. Firestore 보안 규칙을 확인해주세요. (개발용 규칙: allow read, write: if true)')
-      } else if (error.code === 'unavailable') {
-        ElMessage.error('Firebase 서비스를 사용할 수 없습니다. 네트워크 연결을 확인해주세요.')
-      } else {
-        ElMessage.error(`사용자 조회 중 오류가 발생했습니다: ${error.message || error.code || error}`)
-      }
+      ElMessage.error(`사용자 조회 중 오류가 발생했습니다: ${error.message || error}`)
       loading.value = false
       return
     }
