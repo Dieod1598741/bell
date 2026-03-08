@@ -24,11 +24,11 @@ class DBManager:
         if self._initialized:
             return
             
-        self.host = os.getenv("SUPABASE_DB_HOST")
-        self.dbname = os.getenv("SUPABASE_DB_NAME", "postgres")
-        self.user = os.getenv("SUPABASE_DB_USER", "postgres")
-        self.password = os.getenv("SUPABASE_DB_PASSWORD")
-        self.port = os.getenv("SUPABASE_DB_PORT", "5432")
+        self.host = os.getenv("NEON_DB_HOST")
+        self.dbname = os.getenv("NEON_DB_NAME", "neondb")
+        self.user = os.getenv("NEON_DB_USER", "neondb_owner")
+        self.password = os.getenv("NEON_DB_PASSWORD")
+        self.port = os.getenv("NEON_DB_PORT", "5432")
         
         try:
             self.connection_pool = psycopg2.pool.SimpleConnectionPool(
