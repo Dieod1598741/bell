@@ -1,4 +1,4 @@
-import { Download, Monitor, ShieldAlert } from 'lucide-react'
+import { Monitor, ShieldAlert } from 'lucide-react'
 
 function App() {
     const downloadLinks = {
