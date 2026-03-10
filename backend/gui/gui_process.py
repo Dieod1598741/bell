@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.22"
+CURRENT_VERSION = "v1.1.23"
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
