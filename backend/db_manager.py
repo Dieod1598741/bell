@@ -57,29 +57,30 @@ class DBManager:
             self.connection_pool.putconn(conn)
 
     def execute_query(self, query, params=None, fetch=True):
-        """쿼리 실행 (SELECT 등)"""
+        """쿼리 실행 (SELECT 등). 성공 시 (결과, None), 실패 시 (None, 에러메시지) 반환"""
         conn = self.get_connection()
         if not conn:
-            return None
+            return None, "데이터베이스 연결에 실패했습니다."
             
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(query, params)
                 if fetch:
                     result = cur.fetchall()
-                    return result
+                    return result, None
                 conn.commit()
-                return True
+                return True, None
         except Exception as e:
-            print(f"[DB] Query execution error: {e}")
+            error_msg = str(e)
+            print(f"[DB] Query execution error: {error_msg}")
             conn.rollback()
-            return None
+            return None, error_msg
         finally:
             self.put_connection(conn)
 
     def execute_one(self, query, params=None):
         """단일 행 결과 반환"""
-        result = self.execute_query(query, params)
+        result, error = self.execute_query(query, params)
         return result[0] if result else None
 
     # --- User-related operations ---
@@ -120,7 +121,10 @@ class DBManager:
                 f"ON CONFLICT (id) DO UPDATE SET {update_stmt}, updated_at = CURRENT_TIMESTAMP"
         
         print(f"[DB] Creating/Updating user: {processed_data.get('id')}")
-        return self.execute_query(query, tuple(processed_data.values()), fetch=False)
+        result, error = self.execute_query(query, tuple(processed_data.values()), fetch=False)
+        if error:
+            return False, error
+        return True, None
 
     def get_unread_count(self, user_id):
         """읽지 않은 메시지 및 알림 총 개수 반환"""
