@@ -190,16 +190,15 @@ class PystrayTrayManager(BaseTrayManager):
             self.setup()
             
         if self.pystray_icon:
-            assert self.pystray_icon is not None
             self._running = True
-            threading.Thread(target=self.pystray_icon.run, daemon=True).start()
+            threading.Thread(target=self.pystray_icon.run, daemon=True).start()  # type: ignore[union-attr]
             print("[Pystray] 트레이 시작됨")
 
     def stop(self):
         """트레이 중지"""
         if self.pystray_icon:
             assert self.pystray_icon is not None
-            self.pystray_icon.stop()
+            self.pystray_icon.stop()  # type: ignore[union-attr]
             self._running = False
             print("[Pystray] 트레이 중지됨")
 
@@ -210,7 +209,7 @@ class PystrayTrayManager(BaseTrayManager):
         
         if self.pystray_icon:
             assert self.pystray_icon is not None
-            self.pystray_icon.icon = self._create_image(self.current_status, self.unread_count)
+            self.pystray_icon.icon = self._create_image(self.current_status, self.unread_count)  # type: ignore[union-attr]
             # 메뉴 내 상태 표시 텍스트 갱신을 위해 메뉴 재생성 고려 (필요시)
 
     def show_notification(self, title, message):
