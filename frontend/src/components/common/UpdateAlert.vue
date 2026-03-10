@@ -88,8 +88,20 @@ const handleUpdate = async () => {
   }
 }
 
-onMounted(() => {
-  // 시작 후 3초 뒤에 업데이트 확인 (초기 로딩 부하 방지)
+onMounted(async () => {
+  // 시작 시 이미 다운로드된 업데이트가 있는지 확인 (창 닫았다 열어도 유지)
+  if (window.pywebview?.api?.getPendingUpdate) {
+    try {
+      const pending = await backendService.getPendingUpdate()
+      if (pending?.pendingPath) {
+        isDownloaded.value = true
+        savedFilePath.value = pending.pendingPath
+        hasUpdate.value = true
+        latestVersion.value = '(다운로드 완료)'
+      }
+    } catch (e) { /* 무시 */ }
+  }
+  // 3초 뒤 업데이트 확인 (초기 로딩 부하 방지)
   setTimeout(checkUpdate, 3000)
 })
 </script>

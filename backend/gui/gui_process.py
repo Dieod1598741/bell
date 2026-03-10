@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.42"
+CURRENT_VERSION = "v1.1.43"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -774,23 +774,28 @@ class API:
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
-                        if total > 0:
-                            pct = int(downloaded / total * 100)
-                            # SSE로 진행률 전송 (프론트엔드 UpdateAlert에서 수신 가능)
-                            sse = SSEManager()
-                            sse.broadcast({
-                                "type": "UPDATE_PROGRESS",
-                                "percent": pct,
-                                "downloaded": downloaded,
-                                "total": total
-                            })
+            
+            # 다운로드 완료 경로를 파일에 저장 (창 닫아도 유지)
+            pending_file = DATA_DIR / "pending_update.txt"
+            pending_file.write_text(save_path, encoding='utf-8')
             
             print(f"[API] 다운로드 완료: {save_path}")
             return {"success": True, "savePath": save_path}
         except Exception as e:
             print(f"[API] 다운로드 오류: {e}")
             return {"success": False, "error": str(e)}
-    
+
+    def getPendingUpdate(self):
+        """미설치 다운로드 파일 경로 반환 (창 재오픈 시 설치 버튼 복원용)"""
+        try:
+            pending_file = DATA_DIR / "pending_update.txt"
+            if pending_file.exists():
+                path = pending_file.read_text(encoding='utf-8').strip()
+                if path and os.path.exists(path):
+                    return {"success": True, "pendingPath": path}
+            return {"success": True, "pendingPath": None}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     def runInstaller(self, file_path):
         """설치 프로그램 실행 후 앱 종료 → 자동 재시작 (macOS/Windows)"""
         try:
