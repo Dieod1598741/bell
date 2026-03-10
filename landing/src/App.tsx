@@ -12,7 +12,7 @@ function App() {
                 {/* Header */}
                 <div className="space-y-2">
                     <h1 className="text-4xl font-black tracking-tight text-slate-900">Bell</h1>
-                    <p className="text-slate-500 font-medium">데스크톱 알람 & 메신저</p>
+                    <p className="text-slate-500 font-medium">언제 어디서나, 가장 빠른 알람 & 메신저</p>
                 </div>
 
                 {/* Download Buttons */}
@@ -53,7 +53,7 @@ function App() {
 
                 {/* Footer */}
                 <footer className="pt-8 text-xs text-slate-400 border-t border-slate-100">
-                    © 2026 Bell Project. 한대연 제작.
+                    © 2026 Bell Project. All rights reserved.
                 </footer>
             </div>
         </div>
