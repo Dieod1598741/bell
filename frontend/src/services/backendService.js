@@ -41,6 +41,7 @@ export const backendService = {
 
     // Inbox / Announcements
     getInbox: (userId) => callBackend('getInbox', userId),
+    sendInboxMessage: (senderId, targetId, content, type, extraData) => callBackend('sendInboxMessage', senderId, targetId, content, type, extraData),
     sendAnnouncement: (userIds, message) => callBackend('sendAnnouncement', userIds, message),
 
     // Hardware / Settings

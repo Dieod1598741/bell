@@ -22,9 +22,7 @@ export function watchInbox(userId, callback) {
 }
 
 export async function sendInboxMessage(senderId, targetId, content, type = 'message', extraData = {}) {
-  // 실제 백엔드에 구현된 API가 있으면 호출, 없으면 generic 저장 API 필요
-  // 현재는 chatService에서 유사 기능 수행 가능
-  return { success: true }
+  return await backendService.sendInboxMessage(senderId, targetId, content, type, extraData)
 }
 
 export async function markInboxMessageRead(messageId) {

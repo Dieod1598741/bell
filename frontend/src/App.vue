@@ -10,11 +10,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { restoreSession } from '@/composables/useSession'
 import { getUser } from '@/services/userService'
+import { sseClient } from '@/services/sseClient'
+import { ElNotification } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -29,6 +31,9 @@ onMounted(async () => {
   
   // 활동 상태 모니터링 시작 (마우스 움직임 기반 자리비움 감지)
   startActivityMonitoring()
+
+  // SSE 알림 리스너 등록
+  setupNotificationListeners()
   
   // 초기화 완료
   isInitializing.value = false
@@ -184,8 +189,37 @@ const stopActivityMonitoring = () => {
   }
 }
 
+// SSE 알림 팝업 등록
+const setupNotificationListeners = () => {
+  // 새 채팅 메시지 알림
+  sseClient.on('NEW_CHAT', (msg) => {
+    const currentUserId = userStore.user?.id
+    if (!currentUserId || msg.sender_user_id === currentUserId) return
+    ElNotification({
+      title: '💬 새 메시지',
+      message: msg.content?.length > 40 ? msg.content.substring(0, 40) + '...' : msg.content,
+      type: 'info',
+      duration: 4000,
+      position: 'bottom-right'
+    })
+  })
+
+  // 새 쪽지 / 회의요청 알림
+  sseClient.on('NEW_ANNOUNCEMENT', (data) => {
+    const currentUserId = userStore.user?.id
+    if (!currentUserId || data.sender_user_id === currentUserId) return
+    const isMeeting = data.type === 'meeting'
+    ElNotification({
+      title: isMeeting ? '📅 회의 요청' : '✉️ 새 쪽지',
+      message: data.message?.length > 40 ? data.message.substring(0, 40) + '...' : data.message,
+      type: isMeeting ? 'warning' : 'success',
+      duration: 5000,
+      position: 'bottom-right'
+    })
+  })
+}
+
 // 컴포넌트 언마운트 시 정리
-import { onUnmounted } from 'vue'
 onUnmounted(() => {
   stopActivityMonitoring()
 })

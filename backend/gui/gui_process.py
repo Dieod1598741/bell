@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.46"
+CURRENT_VERSION = "v1.1.47"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -454,6 +454,30 @@ class API:
             return {"success": False, "error": f"메시지 저장 실패: {error}"}
         except Exception as e:
             print(f"[API] sendChatMessage 오류: {e}")
+            return {"success": False, "error": str(e)}
+
+    def sendInboxMessage(self, sender_id, target_id, content, msg_type='message', extra_data=None):
+        """쪽지/회의요청을 inbox 테이블에 저장하고 SSE NEW_ANNOUNCEMENT 이벤트 발송"""
+        try:
+            query = """INSERT INTO inbox (sender_user_id, target_user_id, message, type)
+                       VALUES (%s, %s, %s, %s) RETURNING *"""
+            result, error = self.db_manager.execute_query(
+                query, (sender_id, target_id, content, msg_type)
+            )
+            if result:
+                msg = result[0]
+                # 수신자에게 SSE 이벤트 발송
+                self.sse_manager.broadcast("NEW_ANNOUNCEMENT", {
+                    "id": msg.get("id"),
+                    "sender_user_id": sender_id,
+                    "target_user_id": target_id,
+                    "message": content,
+                    "type": msg_type
+                })
+                return {"success": True, "data": msg}
+            return {"success": False, "error": f"저장 실패: {error}"}
+        except Exception as e:
+            print(f"[API] sendInboxMessage 오류: {e}")
             return {"success": False, "error": str(e)}
 
     def sendAnnouncement(self, user_ids, message, sender_id='admin'):
