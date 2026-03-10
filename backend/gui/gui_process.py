@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.50"
+CURRENT_VERSION = "v1.1.51"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -840,36 +840,77 @@ class API:
 
             if system == "Darwin":
                 # ── macOS 자동 업데이트 ────────────────────────────────
-                # 1. 독립 쉘 스크립트 작성 (Bell 종료 후에도 계속 실행)
-                dst_app = "/Applications/Bell.app"
-                mount_pt = "/Volumes/Bell_Update"
+                # 현재 실행 중인 Bell.app 경로 감지 (frozen: 번들 내부, 아니면 /Applications)
+                if getattr(sys, 'frozen', False):
+                    # PyInstaller: sys.executable → .../Bell.app/Contents/MacOS/Bell
+                    import pathlib
+                    current_app = str(pathlib.Path(sys.executable).parents[2])  # .app까지
+                else:
+                    current_app = "/Applications/Bell.app"
                 
+                dst_app = current_app
+                mount_pt = "/Volumes/Bell_Update"
                 parent_pid = os.getppid()
+                log_file = "/tmp/bell_update.log"
+                
                 script = f"""#!/bin/bash
+exec > "{log_file}" 2>&1
+echo "[update] started at $(date)"
 sleep 2
-hdiutil detach "{mount_pt}" 2>/dev/null
-if hdiutil attach "{file_path}" -mountpoint "{mount_pt}" -nobrowse -quiet; then
-    if [ -d "{mount_pt}/Bell.app" ]; then
-        rm -rf "{dst_app}"
-        cp -R "{mount_pt}/Bell.app" "{dst_app}"
-        hdiutil detach "{mount_pt}" -quiet 2>/dev/null
-        rm -f "{file_path}"
-        # 새 인스턴스 실행 (-n: 이미 실행 중이어도 새 인스턴스)
-        open -n "{dst_app}"
-        # 새 앱이 기동할 시간을 충분히 줌 (4초)
-        sleep 4
-        # 기존 프로세스 종료
-        kill {parent_pid} 2>/dev/null || true
-    else
-        # Bell.app 없으면 DMG만 열어 사용자가 수동 설치
-        hdiutil detach "{mount_pt}" -quiet 2>/dev/null
+
+# 기존 마운트 해제
+hdiutil detach "{mount_pt}" 2>/dev/null || true
+
+echo "[update] attaching DMG: {file_path}"
+if ! hdiutil attach "{file_path}" -mountpoint "{mount_pt}" -nobrowse -noverify -quiet; then
+    echo "[update] hdiutil attach failed, trying without -nobrowse"
+    hdiutil attach "{file_path}" -noverify || {{
+        echo "[update] mount failed completely, opening DMG manually"
         open "{file_path}"
+        exit 1
+    }}
+    # 마운트됐지만 경로 다를 수 있으므로 find
+    mount_pt=$(find /Volumes -maxdepth 2 -name "Bell.app" 2>/dev/null | head -1 | xargs -I{{}} dirname {{}})
+fi
+
+echo "[update] mount_pt: $mount_pt"
+ls -la "$mount_pt/" 2>/dev/null || echo "[update] cannot list mount_pt"
+
+# Bell.app 위치 찾기 (볼륨 루트 또는 하위)
+src_app=$(find "$mount_pt" -maxdepth 2 -name "Bell.app" -type d 2>/dev/null | head -1)
+echo "[update] src_app: $src_app"
+
+if [ -d "$src_app" ]; then
+    echo "[update] copying $src_app -> {dst_app}"
+    rm -rf "{dst_app}"
+    # cp 실패 시 rsync로 재시도
+    if ! cp -R "$src_app" "{dst_app}" 2>/dev/null; then
+        echo "[update] cp failed, trying rsync"
+        rsync -a --delete "$src_app/" "{dst_app}/" || {{
+            echo "[update] rsync also failed"
+            hdiutil detach "$mount_pt" -quiet 2>/dev/null || true
+            open "{file_path}"
+            exit 1
+        }}
     fi
+    echo "[update] copy done"
+    hdiutil detach "$mount_pt" -quiet 2>/dev/null || true
+    rm -f "{file_path}"
+    
+    # 새 인스턴스 실행
+    echo "[update] opening {dst_app}"
+    open -n "{dst_app}"
+    sleep 4
+    
+    # 기존 트레이 프로세스 종료
+    echo "[update] killing old process {parent_pid}"
+    kill {parent_pid} 2>/dev/null || true
 else
-    # 마운트 실패 - DMG를 직접 열기
+    echo "[update] Bell.app not found in DMG, opening DMG manually"
+    hdiutil detach "$mount_pt" -quiet 2>/dev/null || true
     open "{file_path}"
 fi
-rm -f "$0"
+echo "[update] done"
 """
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.sh',
                                                  delete=False, dir='/tmp') as f:
@@ -877,23 +918,18 @@ rm -f "$0"
                     script_path = f.name
 
                 os.chmod(script_path, 0o755)
-                # 독립 프로세스로 실행 (Bell이 종료돼도 계속 실행됨)
                 subprocess.Popen(['/bin/bash', script_path],
                                   stdout=subprocess.DEVNULL,
                                   stderr=subprocess.DEVNULL,
                                   close_fds=True,
                                   start_new_session=True)
 
-                # 2. 부모 프로세스(main.py 트레이)도 종료 → 새 Bell이 단독으로 실행
-                def quit_all():
-                    try:
-                        os.kill(os.getppid(), signal.SIGTERM)  # main.py 종료
-                    except Exception:
-                        pass
-                    os._exit(0)  # gui_process 자신도 종료
+                # gui_process 자신만 종료 (main.py는 shell script가 처리)
+                def quit_gui():
+                    os._exit(0)
 
-                threading.Timer(1.0, quit_all).start()
-                return {"success": True, "message": "업데이트 설치 중... 2초 후 자동 재시작됩니다."}
+                threading.Timer(1.0, quit_gui).start()
+                return {"success": True, "message": "업데이트 설치 중... 자동 재시작됩니다."}
 
             elif system == "Windows":
                 # ── Windows 자동 업데이트 ──────────────────────────────
