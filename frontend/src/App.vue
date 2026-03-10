@@ -23,18 +23,21 @@ const userStore = useUserStore()
 const isInitializing = ref(true)
 
 onMounted(async () => {
+  // SSE 연결 먼저 시작 (DB_UPDATE, NEW_CHAT, NEW_ANNOUNCEMENT 수신을 위해)
+  sseClient.connect()
+
   // 자동 로그인 체크를 먼저 수행 (로그인 화면이 보이지 않도록)
   await checkAutoLogin()
-  
+
   // 세션 복원
   await restoreSession()
-  
+
   // 활동 상태 모니터링 시작 (마우스 움직임 기반 자리비움 감지)
   startActivityMonitoring()
 
   // SSE 알림 리스너 등록
   setupNotificationListeners()
-  
+
   // 초기화 완료
   isInitializing.value = false
 })
@@ -222,6 +225,7 @@ const setupNotificationListeners = () => {
 // 컴포넌트 언마운트 시 정리
 onUnmounted(() => {
   stopActivityMonitoring()
+  sseClient.disconnect()
 })
 </script>
 
