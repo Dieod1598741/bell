@@ -2,8 +2,8 @@ import { Monitor, ShieldAlert } from 'lucide-react'
 
 function App() {
     const downloadLinks = {
-        macos: "https://github.com/Dieod1598741/bell/releases/download/v1.1.9/Bell.dmg",
-        windows: "https://github.com/Dieod1598741/bell/releases/download/v1.1.9/Bell.exe"
+        macos: "https://github.com/Dieod1598741/bell/releases/download/v1.1.10/Bell.dmg",
+        windows: "https://github.com/Dieod1598741/bell/releases/download/v1.1.10/Bell.exe"
     }
 
     return (
