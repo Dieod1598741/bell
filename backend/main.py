@@ -271,8 +271,8 @@ class BellApp:
         """애플리케이션 실행"""
         print("시스템 트레이 설정 중...")
         
-        # 트레이 아이콘 설정
-        icon = self.tray_manager.setup()
+        # 트레이 아이콘 설정 (initial_status 유지해서 setup에서 덮어쓰지 않도록)
+        icon = self.tray_manager.setup(current_status=self.tray_manager._impl.current_status)
         if not icon:
             print("트레이 설정 실패")
             return

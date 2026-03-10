@@ -39,9 +39,9 @@ class TrayManager:
         """트레이 종료"""
         return self._impl.stop()
     
-    def update_icon(self, status: Optional[str] = None):
-        """아이콘 업데이트"""
-        return self._impl.update_icon(status)
+    def update_icon(self, status: Optional[str] = None, count: Optional[int] = None):
+        """아이콘 업데이트 (status + count 모두 _impl에 전달)"""
+        return self._impl.update_icon(status=status, count=count)
     
     def update_menu(self, current_status=None):
         """메뉴 업데이트"""
