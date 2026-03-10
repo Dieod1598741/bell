@@ -167,7 +167,8 @@ class PystrayTrayManager(BaseTrayManager):
         self.current_status = current_status if current_status else 'offline'
         
         # ── 상태 레이블: 동적 텍스트 (열 때마다 self.current_status 읽음) ──
-        def status_text(icon, item):
+        # pystray callable title: 인자 없이 호출됨 (또는 item 하나)
+        def status_text(item):
             STATUS_KR = {
                 'online':  '온라인',
                 'away':    '자리비움',
