@@ -11,13 +11,12 @@ async function hashPassword(password) {
 
 export async function getUser(userId) {
   try {
-    const result = await backendService.getUserInfo()
-    if (result.success && result.data && result.data.id === userId) {
+    if (!userId) return null
+    const result = await backendService.getUserById(userId)
+    if (result.success && result.data) {
       return result.data
     }
-    // 기본적으로 전체 사용자 목록에서 조회하거나 별도 상세 조회 API 필요
-    // 현재는 로컬 정보 기반
-    return result.data
+    return null
   } catch (error) {
     console.error('[userService] 사용자 조회 실패:', error)
     throw error

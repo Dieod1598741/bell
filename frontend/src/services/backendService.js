@@ -21,6 +21,7 @@ export const backendService = {
     // User
     getUserInfo: () => callBackend('getUserInfo'),
     saveUserInfo: (data) => callBackend('saveUserInfo', data),
+    getUserById: (userId) => callBackend('getUserById', userId),
     getUserStatus: () => callBackend('getUserStatus'),
     saveUserStatus: (status) => callBackend('saveUserStatus', status),
     getAllUsers: () => callBackend('getAllUsers'),

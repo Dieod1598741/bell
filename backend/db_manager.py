@@ -82,35 +82,72 @@ class DBManager:
             self.connection_pool = None
 
     def get_connection(self):
+        """커넥션 풀에서 커넥션을 가져오며 상태를 점검합니다."""
         if not self.connection_pool:
-            return None
-        return self.connection_pool.getconn()
-
-    def put_connection(self, conn):
-        if self.connection_pool:
-            self.connection_pool.putconn(conn)
-
-    def execute_query(self, query, params=None, fetch=True):
-        """쿼리 실행 (SELECT 등). 성공 시 (결과, None), 실패 시 (None, 에러메시지) 반환"""
-        conn = self.get_connection()
-        if not conn:
-            return None, "데이터베이스 연결에 실패했습니다."
-            
+            print("[DB] Connection pool is not initialized. Re-initializing...")
+            self.__init__()
+            if not self.connection_pool:
+                return None
+        
         try:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(query, params)
-                if fetch:
-                    result = cur.fetchall()
-                    return result, None
-                conn.commit()
-                return True, None
+            conn = self.connection_pool.getconn()
+            # 커넥션 생존 확인 (SELECT 1)
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+            return conn
         except Exception as e:
-            error_msg = str(e)
-            print(f"[DB] Query execution error: {error_msg}")
-            conn.rollback()
-            return None, error_msg
-        finally:
-            self.put_connection(conn)
+            print(f"[DB] Connection health check failed: {e}")
+            if 'conn' in locals():
+                try: self.connection_pool.putconn(conn, close=True)
+                except: pass
+            return None
+
+    def put_connection(self, conn, fail=False):
+        if self.connection_pool:
+            try:
+                self.connection_pool.putconn(conn, close=fail)
+            except:
+                pass
+
+    def execute_query(self, query, params=None, fetch=True, retries=3):
+        """쿼리 실행 (SELECT 등). 성공 시 (결과, None), 실패 시 (None, 에러메시지) 반환.
+        Neon 등의 서버리스 DB 연결 끊김을 대비해 재시도 로직을 포함합니다.
+        """
+        last_error = "Unknown error"
+        
+        for attempt in range(retries):
+            conn = self.get_connection()
+            if not conn:
+                last_error = "데이터베이스 연결에 실패했습니다 (커넥션 획득 불가)."
+                time.sleep(1)
+                continue
+                
+            try:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(query, params)
+                    if fetch:
+                        result = cur.fetchall()
+                        self.put_connection(conn)
+                        return result, None
+                    conn.commit()
+                    self.put_connection(conn)
+                    return True, None
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                # 연결 관련 에러는 재시도
+                last_error = str(e)
+                print(f"[DB] Connection error (attempt {attempt+1}/{retries}): {last_error}")
+                self.put_connection(conn, fail=True)
+                time.sleep(1)
+            except Exception as e:
+                # 일반적인 SQL 에러는 재시도 없이 즉시 반환
+                last_error = str(e)
+                print(f"[DB] SQL error: {last_error}")
+                if 'conn' in locals() and conn:
+                    conn.rollback()
+                    self.put_connection(conn)
+                return None, last_error
+                
+        return None, f"최대 재시도 횟수를 초과했습니다: {last_error}"
 
     def execute_one(self, query, params=None):
         """단일 행 결과 반환"""

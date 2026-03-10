@@ -234,6 +234,22 @@ class API:
             print(f"[API] getUserInfo 오류: {e}")
             return {"success": False, "error": str(e)}
     
+    def getUserById(self, user_id):
+        """특정 사용자 정보 조회 (로그인 등에서 사용)"""
+        try:
+            self._update_backend_request_time()
+            if not user_id:
+                return {"success": False, "message": "사용자 ID가 없습니다."}
+            
+            db_user = self.db_manager.get_user(user_id)
+            if db_user:
+                return {"success": True, "data": db_user}
+            else:
+                return {"success": False, "message": "사용자를 찾을 수 없습니다."}
+        except Exception as e:
+            print(f"[API] getUserById 오류: {e}")
+            return {"success": False, "error": str(e)}
+
     def saveUserInfo(self, user_data):
         """사용자 정보 저장 (로컬 + DB)"""
         try:

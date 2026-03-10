@@ -11,8 +11,12 @@ from db_manager import DBManager
 def list_pending_users(db):
     print("🔍 승인 대기 중인 사용자 목록 조회 중 (Neon)...")
     try:
-        query = "SELECT id, name, nick_nm, email, created_at FROM users WHERE permission = 'pending' AND del_yn = 'n'"
-        pending_users = db.execute_query(query)
+        query = 'SELECT "id", "name", "nick_nm", "email", "created_at" FROM "users" WHERE "permission" = \'pending\' AND "del_yn" = \'n\''
+        pending_users, error = db.execute_query(query)
+        
+        if error:
+            print(f"❌ 데이터베이스 오류: {error}")
+            return []
         
         if not pending_users:
             print("✅ 승인 대기 중인 사용자가 없습니다.")
@@ -35,8 +39,12 @@ def approve_user(db, user_id):
             return False
         
         # 권한 업데이트
-        query = "UPDATE users SET permission = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = %s"
-        db.execute_query(query, (user_id,), fetch=False)
+        query = 'UPDATE "users" SET "permission" = \'approved\', "updated_at" = CURRENT_TIMESTAMP WHERE "id" = %s'
+        _, error = db.execute_query(query, (user_id,), fetch=False)
+        
+        if error:
+            print(f"❌ 승인 실패: {error}")
+            return False
         
         print(f"✅ 성공: 사용자 '{user_id}'가 승인되었습니다! 이제 로그인이 가능합니다.")
         return True
