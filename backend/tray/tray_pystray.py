@@ -1,10 +1,11 @@
 import os
 import sys
 import threading
-from PIL import Image, ImageDraw, ImageFont
-import pystray
-from pystray import MenuItem as item
-from plyer import notification
+from typing import Optional
+from PIL import Image, ImageDraw, ImageFont  # type: ignore
+import pystray  # type: ignore
+from pystray import MenuItem as item  # type: ignore
+from plyer import notification  # type: ignore
 from .tray_base import BaseTrayManager
 
 def resource_path(relative_path):
@@ -12,7 +13,7 @@ def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         # 1. 빌드 환경: _MEIPASS 루트 또는 tray 내 폴더
         for sub in ['.', 'tray', 'backend/tray']:
-            p = os.path.join(sys._MEIPASS, sub, relative_path)
+            p = os.path.join(sys._MEIPASS, sub, relative_path)  # type: ignore[attr-defined]
             if os.path.exists(p): return p
     
     # 2. 개발 환경: 현재 파일 기준 상대 경로
@@ -28,12 +29,12 @@ class PystrayTrayManager(BaseTrayManager):
     def __init__(self, on_show_window=None, on_quit=None, on_show_status=None, machine_id=None):
         # BaseTrayManager.__init__를 명시적으로 호출 (린트 오류 방지)
         BaseTrayManager.__init__(self, on_show_window, on_quit, on_show_status)
-        self.pystray_icon = None
+        self.pystray_icon: Optional[pystray.Icon] = None
         self.current_status = 'offline'
         self.unread_count = 0
         
         # 아이콘 검색 (우선순위에 따라)
-        self.icon_path = None
+        self.icon_path: Optional[str] = None
         for icon_name in ['bell_icon.png', 'bell_sys.png', 'icon.png']:
             path = resource_path(icon_name)
             if os.path.exists(path):
@@ -76,7 +77,7 @@ class PystrayTrayManager(BaseTrayManager):
                     fill=BG_COLOR
                 )
 
-            if self.icon_path and os.path.exists(self.icon_path):
+            if self.icon_path and os.path.exists(self.icon_path):  # type: ignore[arg-type]
                 # 아이콘을 캔버스의 80% 크기로 (배경이 테두리처럼 보이도록 여백 확보)
                 icon_size = int(SIZE * 0.72)
                 offset = (SIZE - icon_size) // 2
@@ -189,6 +190,7 @@ class PystrayTrayManager(BaseTrayManager):
             self.setup()
             
         if self.pystray_icon:
+            assert self.pystray_icon is not None
             self._running = True
             threading.Thread(target=self.pystray_icon.run, daemon=True).start()
             print("[Pystray] 트레이 시작됨")
@@ -196,16 +198,18 @@ class PystrayTrayManager(BaseTrayManager):
     def stop(self):
         """트레이 중지"""
         if self.pystray_icon:
+            assert self.pystray_icon is not None
             self.pystray_icon.stop()
             self._running = False
             print("[Pystray] 트레이 중지됨")
 
-    def update_icon(self, status: str = None, count: int = None):
+    def update_icon(self, status: Optional[str] = None, count: Optional[int] = None):
         """아이콘 이미지 실시간 업데이트"""
         if status: self.current_status = status
         if count is not None: self.unread_count = count
         
         if self.pystray_icon:
+            assert self.pystray_icon is not None
             self.pystray_icon.icon = self._create_image(self.current_status, self.unread_count)
             # 메뉴 내 상태 표시 텍스트 갱신을 위해 메뉴 재생성 고려 (필요시)
 
@@ -225,7 +229,7 @@ class PystrayTrayManager(BaseTrayManager):
                     break
         else:
             # self.icon_path가 None 이어도 안전하게 처리
-            if self.icon_path and os.path.exists(self.icon_path):
+            if self.icon_path and os.path.exists(self.icon_path):  # type: ignore[arg-type]
                 icon_path = self.icon_path
 
         # ── macOS: AppKit 직접 호출 (plyer보다 안정적) ─────────
