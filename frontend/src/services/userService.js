@@ -59,13 +59,13 @@ export function watchUsers(callback, currentUserId = null) {
     return false;
   }
 
-  // 최초 로드 - 브리지 준비 안 됐을 수 있으니 최대 6회 재시도
+  // 최초 로드 - Windows는 브리지 준비가 더 느려서 최대 10회(1.5초 간격) 재시도
   const loadWithRetry = async () => {
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 10; i++) {
       const ok = await loadAndFilterUsers();
       if (ok) return;
-      console.warn(`[userService] watchUsers 재시도 ${i + 1}/6 (1초 후)`);
-      await new Promise(r => setTimeout(r, 1000));
+      console.warn(`[userService] watchUsers 재시도 ${i + 1}/10 (1.5초 후)...`);
+      await new Promise(r => setTimeout(r, 1500));
     }
     console.error('[userService] watchUsers: 최대 재시도 초과, 유저 목록 로드 실패');
   };

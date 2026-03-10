@@ -65,21 +65,24 @@ class PystrayTrayManager(BaseTrayManager):
             # ─────────────────────────────────────────────────
             # 2. 아이콘 배경 + 아이콘 합성
             # ─────────────────────────────────────────────────
-            # macOS: 아이콘 색상이 무엇이든 보이도록 어두운 배경 원을 먼저 그림
-            # Windows: 흰색 배경 이미 있음
+            # macOS + Windows 모두 어두운 배경 적용
+            # (아이콘 색상이 베이지/갈색이라 흰색 배경에선 안 보임)
             draw_bg = ImageDraw.Draw(canvas)
-            if not is_windows:
-                # 어두운 네이비 블루 배경 (macOS 메뉴바 라이트/다크 모드 모두에서 잘 보임)
-                BG_COLOR = (30, 58, 138, 230)   # 짙은 파랑, 약간 반투명
-                pad_bg = 1
-                draw_bg.rounded_rectangle(
-                    [pad_bg, pad_bg, SIZE - pad_bg, SIZE - pad_bg],
-                    radius=SIZE // 4,
-                    fill=BG_COLOR
-                )
+            if is_windows:
+                # Windows: 짙은 파랑 배경 (알림 영역 라이트/다크 테마 모두 대응)
+                BG_COLOR = (25, 50, 120, 255)   # 불투명 네이비
+            else:
+                # macOS: 약간 반투명 네이비 (메뉴바 블렌딩)
+                BG_COLOR = (30, 58, 138, 230)
+            pad_bg = 1
+            draw_bg.rounded_rectangle(
+                [pad_bg, pad_bg, SIZE - pad_bg, SIZE - pad_bg],
+                radius=SIZE // 4,
+                fill=BG_COLOR
+            )
 
             if self.icon_path and os.path.exists(self.icon_path):  # type: ignore[arg-type]
-                # 아이콘을 캔버스의 80% 크기로 (배경이 테두리처럼 보이도록 여백 확보)
+                # 아이콘을 캔버스의 72% 크기로 (배경이 테두리처럼 보이도록 여백)
                 icon_size = int(SIZE * 0.72)
                 offset = (SIZE - icon_size) // 2
                 icon_img = Image.open(self.icon_path).convert('RGBA')
@@ -89,6 +92,7 @@ class PystrayTrayManager(BaseTrayManager):
             else:
                 # 아이콘 파일 없으면 배경색만으로 표시 (이미 위에서 그려짐)
                 print(f"[Pystray] ⚠️ 아이콘 파일 없음, 배경 도형으로 대체. path={self.icon_path}")
+
 
             draw = ImageDraw.Draw(canvas)
 
