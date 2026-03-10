@@ -1,4 +1,4 @@
-import { Monitor, ShieldAlert } from 'lucide-react'
+import { Monitor, ShieldAlert, Zap, Bell as BellIcon, RefreshCw, CheckCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 function App() {
@@ -24,6 +24,7 @@ function App() {
     return (
         <div className="min-h-screen bg-white text-slate-900 flex flex-col items-center justify-center p-6 font-sans">
             <div className="max-w-xl w-full text-center space-y-8">
+
                 {/* Header */}
                 <div className="space-y-2 animate-fade-in-up delay-100">
                     <h1 className="text-4xl font-black tracking-tight text-slate-900">Bell</h1>
@@ -63,7 +64,37 @@ function App() {
                     </span>
                 </div>
 
-                {/* Quick Guide */}
+                {/* What's New — v1.1.69 */}
+                <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100 text-left animate-fade-in-up delay-250">
+                    <div className="flex items-center gap-2 text-blue-700 font-bold mb-3">
+                        <Zap size={20} />
+                        <span>최신 업데이트 주요 개선사항</span>
+                    </div>
+                    <ul className="space-y-2 text-sm text-blue-800">
+                        <li className="flex items-start gap-2">
+                            <CheckCircle size={15} className="mt-0.5 shrink-0 text-blue-500" />
+                            <span><strong>실시간 채팅</strong> — 대화창을 보는 중에도 메시지 즉시 반영</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <CheckCircle size={15} className="mt-0.5 shrink-0 text-blue-500" />
+                            <span><strong>Windows 토스트 알림</strong> — 포커스 어시스트 환경에서도 알림 표시</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <CheckCircle size={15} className="mt-0.5 shrink-0 text-blue-500" />
+                            <span><strong>트레이 뱃지 즉시 갱신</strong> — 메시지 읽으면 즉시 숫자 제거</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <CheckCircle size={15} className="mt-0.5 shrink-0 text-blue-500" />
+                            <span><strong>창 닫기 후 재오픈 시 세션 유지</strong> — 로그인 화면 없이 바로 접속</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                            <RefreshCw size={15} className="mt-0.5 shrink-0 text-blue-500" />
+                            <span><strong>인앱 자동 업데이트</strong> — 앱 내에서 버튼 한 번으로 업데이트</span>
+                        </li>
+                    </ul>
+                </div>
+
+                {/* macOS 실행 가이드 */}
                 <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 text-left animate-fade-in-up delay-300">
                     <div className="flex items-center gap-2 text-amber-700 font-bold mb-3">
                         <ShieldAlert size={20} />
@@ -74,10 +105,22 @@ function App() {
                     </p>
                 </div>
 
+                {/* Windows 알림 가이드 */}
+                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-left animate-fade-in-up delay-350">
+                    <div className="flex items-center gap-2 text-slate-700 font-bold mb-3">
+                        <BellIcon size={20} />
+                        <span>Windows 알림 가이드</span>
+                    </div>
+                    <p className="text-sm text-slate-700 leading-relaxed">
+                        알림이 뜨지 않으면 <strong>[설정] &gt; [시스템] &gt; [알림]</strong>에서 Bell 앱 알림이 켜져 있는지 확인해주세요. 포커스 어시스트가 켜져 있으면 알림이 차단될 수 있습니다.
+                    </p>
+                </div>
+
                 {/* Footer */}
                 <footer className="pt-8 text-xs text-slate-400 border-t border-slate-100 animate-fade-in-up delay-400">
                     © 2026 Bell Project. All rights reserved.
                 </footer>
+
             </div>
         </div>
     )
