@@ -71,10 +71,12 @@ const handleUpdate = async () => {
     isDownloading.value = true
     // 백엔드에 다운로드 요청
     const result = await backendService.downloadUpdate(downloadUrl.value)
-    if (result.success) {
+    if (result.success && result.savePath) {
+      console.log('[UpdateAlert] Download success, path:', result.savePath);
       isDownloaded.value = true
       savedFilePath.value = result.savePath
-    } else {
+    }
+ else {
       // 실패 시 브라우저라도 열어줌
       backendService.openUrl(downloadUrl.value)
     }

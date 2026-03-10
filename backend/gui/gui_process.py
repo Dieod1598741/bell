@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.17"
+CURRENT_VERSION = "v1.1.18"
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -47,21 +47,26 @@ def transform_user_data(user):
     """DB의 snake_case 사용자 데이터를 프론트엔드가 기대하는 camelCase로 매핑/보강"""
     if not user: return user
     
-    # 기본 변환
+    # 1. 기본 snake_case -> camelCase 변환
     new_user = {}
     for k, v in user.items():
         camel_k = to_camel(k)
         new_user[camel_k] = v
-        new_user[k] = v # 원본 유지
+        new_user[k] = v # 원본 필드 유지 (호환성)
     
-    # 필수 필드 보강 (하나라도 누락되면 프론트엔드에서 필터링될 수 있음)
-    new_user['nickNm'] = user.get('nick_nm') or user.get('name') or user.get('id') or '사용자'
+    # 2. 필수 필드 하이드레이션 (Data Hydration/Resilience)
+    # 하나라도 null이거나 누락되면 프론트엔드 필터링에서 탈락할 수 있음
+    new_user['id'] = user.get('id') or 'unknown'
+    new_user['nickNm'] = user.get('nick_nm') or user.get('name') or new_user['id']
     new_user['name'] = user.get('name') or new_user['nickNm']
     new_user['userStatus'] = user.get('user_status') or 'offline'
     new_user['connectionStatus'] = user.get('connection_status') or 'offline'
-    new_user['permission'] = user.get('permission') or 'pending'
+    new_user['permission'] = user.get('permission') or 'approved' # 기본적으로 노출되게 유도
     new_user['del_yn'] = user.get('del_yn') or 'n'
     new_user['avatar'] = user.get('avatar') or '/icon/icon1.svg'
+    
+    # 디버그: 변환된 결과 확인 (필요시 주석 해제)
+    # print(f"[API] Transformed user: {new_user['id']} (perm: {new_user['permission']})")
     
     return new_user
 
@@ -156,23 +161,33 @@ class API:
     # --- System 및 Update API ---
     
     def checkUpdate(self):
-        """GitHub 최신 릴리즈 확인"""
+        """GitHub 최신 릴리즈 확인 및 플랫폼별 다운로드 URL 추출"""
         try:
             repo_url = "https://api.github.com/repos/Dieod1598741/bell/releases/latest"
             response = requests.get(repo_url, timeout=5)
             if response.status_code == 200:
                 latest_data = response.json()
                 latest_version = latest_data.get('tag_name')
-                
-                # 버전 비교 (v1.1.13 vs v1.1.14 등)
                 has_update = latest_version != CURRENT_VERSION
+                
+                # 플랫폼별 자산(asset) 찾기
+                target_extension = '.dmg' if sys.platform == 'darwin' else '.exe'
+                download_url = latest_data.get('html_url') # 폴백: 웹페이지
+                
+                assets = latest_data.get('assets', [])
+                for asset in assets:
+                    name = asset.get('name', '').lower()
+                    if name.endswith(target_extension):
+                        download_url = asset.get('browser_download_url')
+                        print(f"[API] 플랫폼에 맞는 자산 발견: {name}")
+                        break
                 
                 return {
                     "success": True,
                     "hasUpdate": has_update,
                     "currentVersion": CURRENT_VERSION,
                     "latestVersion": latest_version,
-                    "downloadUrl": latest_data.get('html_url'),
+                    "downloadUrl": download_url,
                     "body": latest_data.get('body')
                 }
             return {"success": False, "error": f"GitHub API 오류: {response.status_code}"}
