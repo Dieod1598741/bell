@@ -61,7 +61,10 @@ class SSEClient {
                 } catch (e) { }
             }
 
-            const customEvents = ['DB_UPDATE', 'NEW_CHAT', 'NEW_ANNOUNCEMENT', 'SYSTEM']
+            const customEvents = [
+                'DB_UPDATE', 'NEW_CHAT', 'NEW_ANNOUNCEMENT', 'SYSTEM',
+                'USER_STATUS_CHANGED', 'INBOX_STATUS_CHANGED', 'DOWNLOAD_PROGRESS'
+            ]
             customEvents.forEach(eventType => {
                 this.eventSource.addEventListener(eventType, (event) => {
                     try {

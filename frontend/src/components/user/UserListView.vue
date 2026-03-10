@@ -44,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { watchUsers } from '@/services/userService'
@@ -94,7 +94,27 @@ onMounted(() => {
     allUsers.value = users
     isLoading.value = false
   }, currentUserId)
-  
+
+  // SSE: 사용자 상태 실시간 업데이트
+  const handleUserStatus = (e) => {
+    const { user_id, user_status, connection_status } = e.detail || {}
+    if (!user_id) return
+    const idx = allUsers.value.findIndex(u => u.id === user_id)
+    if (idx !== -1) {
+      allUsers.value[idx] = {
+        ...allUsers.value[idx],
+        user_status: user_status || allUsers.value[idx].user_status,
+        userStatus: user_status || allUsers.value[idx].userStatus,
+        connection_status: connection_status || allUsers.value[idx].connection_status,
+        connectionStatus: connection_status || allUsers.value[idx].connectionStatus
+      }
+    }
+  }
+  window.addEventListener('bell-user-status', handleUserStatus)
+
+  // cleanup을 위해 ref에 저장
+  window._userStatusHandler = handleUserStatus
+
   if (props.selectedUserId) {
     scrollToSelectedUser()
   }
@@ -103,6 +123,10 @@ onMounted(() => {
 onUnmounted(() => {
   if (unwatchUsers) {
     unwatchUsers()
+  }
+  if (window._userStatusHandler) {
+    window.removeEventListener('bell-user-status', window._userStatusHandler)
+    delete window._userStatusHandler
   }
 })
 

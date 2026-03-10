@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.67"
+CURRENT_VERSION = "v1.1.68"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -371,8 +371,9 @@ class API:
             query = "INSERT INTO chats (sender_user_id, target_user_id, content) VALUES (%s, %s, %s) RETURNING *"
             result, error = self.db_manager.execute_query(query, (sender_id, target_id, content))
             if result:
-                msg = result[0]
-                # 타겟과 본인에게 알림
+                msg = dict(result[0])
+                # target_user_id 명시: 프론트에서 수신자 필터링에 사용
+                msg['target_user_id'] = target_id
                 self.sse_manager.broadcast("NEW_CHAT", msg)
                 return {"success": True, "data": msg}
             return {"success": False, "error": f"메시지 저장 실패: {error}"}
@@ -503,7 +504,17 @@ class API:
             result, error = self.db_manager.execute_query(query, (action, message_id))
             if error:
                 return {"success": False, "error": str(error)}
-            return {"success": True, "data": result[0] if result else None}
+            row = result[0] if result else None
+            # 발신자(원본 메시지 보낸 사람)에게 상태 변경 알림
+            if row:
+                self.sse_manager.broadcast("INBOX_STATUS_CHANGED", {
+                    "id": message_id,
+                    "status": action,
+                    # 발신자가 필터링할 수 있도록 target_user_id를 원본 발신자로 설정
+                    "target_user_id": row.get("sender_user_id"),
+                    "notify_user_id": row.get("target_user_id")  # 누가 응답했는지
+                })
+            return {"success": True, "data": row}
         except Exception as e:
             print(f"[API] replyInboxMessage 오류: {e}")
             return {"success": False, "error": str(e)}
@@ -556,8 +567,12 @@ class API:
             if user_data and user_data.get('id'):
                 self.db_manager.update_user_status(user_data.get('id'), status)
                 print(f"[API] DB 상태 업데이트 완료: {user_data.get('id')} -> {status}")
-                # 다른 사용자에게 실시간 상태 변경 전파
-                self.sse_manager.publish_update("users", "update", {"id": user_data.get('id'), "user_status": status})
+                # USER_STATUS_CHANGED: 전체 브로드캐스트 (target_user_id 없음 = 전체)
+                self.sse_manager.broadcast("USER_STATUS_CHANGED", {
+                    "user_id": user_data.get('id'),
+                    "user_status": status,
+                    "connection_status": status
+                })
             
             # 3. 모듈 레벨 상태 업데이트 (SSE 신규 연결 시 동기화용)
             global _current_tray_status

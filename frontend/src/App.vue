@@ -194,10 +194,13 @@ const stopActivityMonitoring = () => {
 
 // SSE 알림 팝업 등록
 const setupNotificationListeners = () => {
-  // 새 채팅 메시지 알림
+  // 새 채팅 메시지 알림 (나에게 온 것만)
   sseClient.on('NEW_CHAT', (msg) => {
     const currentUserId = userStore.user?.id
-    if (!currentUserId || msg.sender_user_id === currentUserId) return
+    if (!currentUserId) return
+    if (msg.sender_user_id === currentUserId) return  // 내가 보낸 건 제외
+    if (msg.target_user_id && msg.target_user_id !== currentUserId) return  // 타겟이 다른 사람
+
     ElNotification({
       title: '💬 새 메시지',
       message: msg.content?.length > 40 ? msg.content.substring(0, 40) + '...' : msg.content,
@@ -205,17 +208,50 @@ const setupNotificationListeners = () => {
       duration: 4000,
       position: 'bottom-right'
     })
+    // 채팅 실시간 업데이트 이벤트 발행 (ChatView에서 수신)
+    window.dispatchEvent(new CustomEvent('bell-new-chat', { detail: msg }))
   })
 
-  // 새 쪽지 / 회의요청 알림
+  // 새 쪽지 / 회의요청 알림 (나에게 온 것만)
   sseClient.on('NEW_ANNOUNCEMENT', (data) => {
     const currentUserId = userStore.user?.id
-    if (!currentUserId || data.sender_user_id === currentUserId) return
+    if (!currentUserId) return
+    if (data.sender_user_id === currentUserId) return  // 내가 보낸 건 제외
+    if (data.target_user_id && data.target_user_id !== currentUserId) return  // 타겟이 다른 사람
+
     const isMeeting = data.type === 'meeting'
+    const isMail = data.type === 'mail'
+    const icon = isMeeting ? '📅' : isMail ? '📧' : '✉️'
+    const title = isMeeting ? '회의 요청' : isMail ? '이메일 확인 요청' : '새 쪽지'
     ElNotification({
-      title: isMeeting ? '📅 회의 요청' : '✉️ 새 쪽지',
+      title: `${icon} ${title}`,
       message: data.message?.length > 40 ? data.message.substring(0, 40) + '...' : data.message,
       type: isMeeting ? 'warning' : 'success',
+      duration: 5000,
+      position: 'bottom-right'
+    })
+    // 인박스 실시간 갱신 이벤트 발행 (InboxListView에서 수신)
+    window.dispatchEvent(new CustomEvent('bell-new-inbox', { detail: data }))
+  })
+
+  // 사용자 상태 변경 실시간 반영 (전체 대상)
+  sseClient.on('USER_STATUS_CHANGED', (data) => {
+    // UserListView가 수신해서 뱃지 즉시 업데이트
+    window.dispatchEvent(new CustomEvent('bell-user-status', { detail: data }))
+  })
+
+  // 회의 수락/거절 결과 알림 (내가 보낸 회의에 대한 응답)
+  sseClient.on('INBOX_STATUS_CHANGED', (data) => {
+    const currentUserId = userStore.user?.id
+    if (!currentUserId) return
+    // target_user_id가 나인 경우 (내가 보낸 회의에 상대가 응답)
+    if (data.target_user_id && data.target_user_id !== currentUserId) return
+
+    const accepted = data.status === 'accepted'
+    ElNotification({
+      title: accepted ? '✅ 회의 수락' : '❌ 회의 거절',
+      message: accepted ? '상대방이 회의를 수락했습니다.' : '상대방이 회의를 거절했습니다.',
+      type: accepted ? 'success' : 'warning',
       duration: 5000,
       position: 'bottom-right'
     })

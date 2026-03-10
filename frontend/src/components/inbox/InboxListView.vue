@@ -120,12 +120,36 @@ onMounted(async () => {
       })
       isLoading.value = false
     })
+
+    // SSE: 새 인박스 메시지 실시간 추가
+    const handleNewInbox = (e) => {
+      const data = e.detail || {}
+      if (!data.id) return
+      const already = allInbox.value.find(m => m.id === data.id)
+      if (already) return
+      const sender = usersMap.get(data.sender_user_id)
+      allInbox.value.unshift({
+        id: data.id,
+        senderId: data.sender_user_id,
+        senderName: sender ? (sender.nickNm || sender.name) : data.sender_user_id,
+        message: data.message || '',
+        type: data.type || 'message',
+        time: new Date().toISOString(),
+        read: false
+      })
+    }
+    window.addEventListener('bell-new-inbox', handleNewInbox)
+    window._inboxHandler = handleNewInbox
   }
 })
 
 onUnmounted(() => {
   if (unwatchInbox) {
     unwatchInbox()
+  }
+  if (window._inboxHandler) {
+    window.removeEventListener('bell-new-inbox', window._inboxHandler)
+    delete window._inboxHandler
   }
 })
 
