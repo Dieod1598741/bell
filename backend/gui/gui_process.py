@@ -237,7 +237,10 @@ class API:
             self.user_manager.save_user(user_data)
             
             # 2. DB 저장
-            self.db_manager.create_user(user_data)
+            db_success = self.db_manager.create_user(user_data)
+            
+            if not db_success:
+                return {"success": False, "error": "데이터베이스 저장에 실패했습니다. (DB 연결 또는 스키마 오류)"}
             
             # 3. SSE 알림
             self.sse_manager.publish_update("users", "upsert", user_data)
