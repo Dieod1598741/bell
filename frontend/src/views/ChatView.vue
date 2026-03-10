@@ -174,16 +174,31 @@ const handleScroll = () => {
 const sendMessage = async () => {
   if (!inputMessage.value.trim()) return
   
+  const content = inputMessage.value.trim()
+  const currentUserId = userStore.user?.id
+  if (!currentUserId) return
+
+  // 낙관적 업데이트: 전송 전 로컬에 즉시 추가
+  const tempMsg = {
+    id: `temp-${Date.now()}`,
+    text: content,
+    isSent: true,
+    time: new Date().toISOString(),
+    type: 'message',
+    read: false
+  }
+  messages.value = [...messages.value, tempMsg]
+  inputMessage.value = ''
+  scrollToBottom()
+
   try {
-    const currentUserId = userStore.user?.id
-    if (!currentUserId) return
-    
-    await sendChatMessage(currentUserId, userId, inputMessage.value.trim())
-    inputMessage.value = ''
-    // 메시지 전송 후 최신 메시지 다시 로드 (실시간 리스너로 자동 업데이트되지만 확실하게)
-    await loadMessages(false)
+    await sendChatMessage(currentUserId, userId, content)
+    // SSE를 통해 실제 메시지가 watchMessages 리스너로 도착하면 tempMsg를 대체함
   } catch (error) {
     console.error('메시지 전송 실패:', error)
+    // 실패 시 낙관적 업데이트 롤백
+    messages.value = messages.value.filter(m => m.id !== tempMsg.id)
+    inputMessage.value = content
   }
 }
 
