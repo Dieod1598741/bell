@@ -1,6 +1,16 @@
 import { Monitor, ShieldAlert } from 'lucide-react'
+import { useState, useEffect } from 'react'
 
 function App() {
+    const [latestVersion, setLatestVersion] = useState<string>('...')
+
+    useEffect(() => {
+        fetch('https://api.github.com/repos/Dieod1598741/bell/releases/latest')
+            .then(r => r.json())
+            .then(data => setLatestVersion(data.tag_name || 'unknown'))
+            .catch(() => setLatestVersion('unknown'))
+    }, [])
+
     const downloadLinks = {
         macos: "https://github.com/Dieod1598741/bell/releases/latest/download/Bell.dmg",
         windows: "https://github.com/Dieod1598741/bell/releases/latest/download/Bell.exe"
@@ -40,6 +50,14 @@ function App() {
                     </a>
                 </div>
 
+                {/* Version Badge */}
+                <div className="animate-fade-in-up delay-250">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-full text-xs text-slate-500">
+                        <span className="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
+                        최신 버전: <strong className="text-slate-700">{latestVersion}</strong>
+                    </span>
+                </div>
+
                 {/* Quick Guide */}
                 <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 text-left animate-fade-in-up delay-300">
                     <div className="flex items-center gap-2 text-amber-700 font-bold mb-3">
@@ -47,7 +65,7 @@ function App() {
                         <span>macOS 실행 가이드</span>
                     </div>
                     <p className="text-sm text-amber-800 leading-relaxed">
-                        처음 실행 시 "확인할 수 없는 개발자" 경고가 뜨면 <strong>[시스템 설정] &gt; [개인정보 보호 및 보안]</strong> 하단에서 **[확인 없이 열기]**를 눌러주세요.
+                        처음 실행 시 "확인할 수 없는 개발자" 경고가 뜨면 <strong>[시스템 설정] &gt; [개인정보 보호 및 보안]</strong> 하단에서 <strong>[확인 없이 열기]</strong>를 눌러주세요.
                     </p>
                 </div>
 
