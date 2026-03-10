@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.25"
+CURRENT_VERSION = "v1.1.26"
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -664,6 +664,180 @@ class API:
                 "error": str(e)
             }
     
+    # ─── 자동 업데이트 ────────────────────────────────────────────
+    
+    def checkUpdate(self):
+        """GitHub Releases API로 최신 버전 확인"""
+        try:
+            import platform
+            REPO = "Dieod1598741/bell"
+            API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
+            
+            print(f"[API] 업데이트 확인 중... 현재 버전: {CURRENT_VERSION}")
+            resp = requests.get(API_URL, timeout=10,
+                                headers={"Accept": "application/vnd.github+json",
+                                         "User-Agent": "Bell-App"})
+            if resp.status_code != 200:
+                return {"success": False, "error": f"GitHub API 응답 오류: {resp.status_code}"}
+            
+            data = resp.json()
+            latest_version = data.get("tag_name", "")
+            release_notes = data.get("body", "")
+            
+            # 버전 비교 (v1.2.3 형식)
+            def parse_ver(v):
+                return tuple(int(x) for x in v.lstrip("v").split("."))
+            
+            has_update = parse_ver(latest_version) > parse_ver(CURRENT_VERSION)
+            print(f"[API] 최신 버전: {latest_version}, 업데이트 필요: {has_update}")
+            
+            if not has_update:
+                return {"success": True, "hasUpdate": False,
+                        "currentVersion": CURRENT_VERSION, "latestVersion": latest_version}
+            
+            # 플랫폼에 맞는 에셋 URL 추출
+            assets = data.get("assets", [])
+            system = platform.system()
+            download_url = ""
+            for asset in assets:
+                name = asset.get("name", "").lower()
+                if system == "Darwin" and name.endswith(".dmg"):
+                    download_url = asset.get("browser_download_url", "")
+                    break
+                elif system == "Windows" and name.endswith(".exe"):
+                    download_url = asset.get("browser_download_url", "")
+                    break
+            
+            # 에셋이 없으면 release HTML URL 반환
+            if not download_url:
+                download_url = data.get("html_url", "")
+            
+            return {
+                "success": True,
+                "hasUpdate": True,
+                "currentVersion": CURRENT_VERSION,
+                "latestVersion": latest_version,
+                "downloadUrl": download_url,
+                "releaseNotes": release_notes
+            }
+        except Exception as e:
+            print(f"[API] 업데이트 확인 오류: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def downloadUpdate(self, url):
+        """업데이트 파일 다운로드 (스트리밍)"""
+        try:
+            import platform
+            
+            update_dir = DATA_DIR / "update"
+            update_dir.mkdir(exist_ok=True)
+            
+            system = platform.system()
+            ext = ".dmg" if system == "Darwin" else ".exe"
+            save_path = str(update_dir / f"Bell_update{ext}")
+            
+            print(f"[API] 업데이트 다운로드 시작: {url} → {save_path}")
+            
+            resp = requests.get(url, stream=True, timeout=120)
+            total = int(resp.headers.get("content-length", 0))
+            downloaded = 0
+            
+            with open(save_path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total > 0:
+                            pct = int(downloaded / total * 100)
+                            # SSE로 진행률 전송 (프론트엔드 UpdateAlert에서 수신 가능)
+                            sse = SSEManager()
+                            sse.broadcast({
+                                "type": "UPDATE_PROGRESS",
+                                "percent": pct,
+                                "downloaded": downloaded,
+                                "total": total
+                            })
+            
+            print(f"[API] 다운로드 완료: {save_path}")
+            return {"success": True, "savePath": save_path}
+        except Exception as e:
+            print(f"[API] 다운로드 오류: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def runInstaller(self, file_path):
+        """설치 프로그램 실행 후 앱 종료 (macOS/Windows 분기)"""
+        try:
+            import platform
+            import subprocess
+            
+            system = platform.system()
+            print(f"[API] 설치 시작: {file_path} (OS: {system})")
+            
+            if system == "Darwin":
+                # macOS: DMG 마운트 → 앱 복사 → 재실행
+                import shutil
+                mount_point = "/Volumes/Bell"
+                
+                # 먼저 마운트 해제 시도 (이전 마운트가 있을 경우)
+                subprocess.run(["hdiutil", "detach", mount_point], capture_output=True)
+                
+                # DMG 마운트
+                result = subprocess.run(
+                    ["hdiutil", "attach", file_path, "-mountpoint", mount_point, "-nobrowse"],
+                    capture_output=True, text=True
+                )
+                if result.returncode != 0:
+                    return {"success": False, "error": f"DMG 마운트 실패: {result.stderr}"}
+                
+                # Bell.app 를 /Applications에 복사
+                src_app = f"{mount_point}/Bell.app"
+                dst_app = "/Applications/Bell.app"
+                
+                if os.path.exists(src_app):
+                    if os.path.exists(dst_app):
+                        shutil.rmtree(dst_app)
+                    shutil.copytree(src_app, dst_app)
+                    print(f"[API] 앱 복사 완료: {dst_app}")
+                else:
+                    return {"success": False, "error": f"Bell.app을 DMG에서 찾을 수 없습니다: {src_app}"}
+                
+                # DMG 마운트 해제
+                subprocess.run(["hdiutil", "detach", mount_point], capture_output=True)
+                
+                # 새 버전 실행 후 현재 프로세스 종료
+                subprocess.Popen(["open", dst_app])
+                import threading
+                threading.Timer(1.5, lambda: os._exit(0)).start()
+                return {"success": True, "message": "업데이트 설치 완료. 재시작 중..."}
+            
+            elif system == "Windows":
+                # Windows: 설치 파일 실행 (UAC 포함) 후 앱 종료
+                subprocess.Popen(
+                    [file_path],
+                    creationflags=getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+                )
+                import threading
+                threading.Timer(1.0, lambda: os._exit(0)).start()
+                return {"success": True, "message": "설치 프로그램 실행 중..."}
+            
+            else:
+                return {"success": False, "error": f"지원하지 않는 OS: {system}"}
+                
+        except Exception as e:
+            print(f"[API] 설치 오류: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+    
+    def openUrl(self, url):
+        """외부 브라우저로 URL 열기"""
+        try:
+            webbrowser.open(url)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+
 
 class SimpleWebHandler(SimpleHTTPRequestHandler):
     """간단한 정적 파일 서버"""
