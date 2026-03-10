@@ -5,6 +5,7 @@ from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 import threading
+import time
 
 # .env 파일 로드 (PyInstaller frozen 대응)
 if getattr(sys, 'frozen', False):
@@ -119,11 +120,11 @@ class DBManager:
     # --- User-related operations ---
     
     def get_user(self, user_id):
-        query = "SELECT * FROM users WHERE id = %s AND del_yn = 'n'"
+        query = 'SELECT * FROM "users" WHERE "id" = %s AND "del_yn" = \'n\''
         return self.execute_one(query, (user_id,))
 
     def update_user_status(self, user_id, status):
-        query = "UPDATE users SET user_status = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
+        query = 'UPDATE "users" SET "user_status" = %s, "updated_at" = CURRENT_TIMESTAMP WHERE "id" = %s'
         return self.execute_query(query, (status, user_id), fetch=False)
 
     def create_user(self, user_data):
@@ -169,12 +170,12 @@ class DBManager:
         count = 0
         try:
             # 1. 채팅 읽지 않은 개수
-            chat_query = "SELECT COUNT(*) FROM chats WHERE target_user_id = %s AND read = false AND del_yn = 'n'"
+            chat_query = 'SELECT COUNT(*) FROM "chats" WHERE "target_user_id" = %s AND "read" = false AND "del_yn" = \'n\''
             chat_res = self.execute_one(chat_query, (user_id,))
             if chat_res: count += chat_res['count']
             
             # 2. 인박스/공지 읽지 않은 개수
-            inbox_query = "SELECT COUNT(*) FROM inbox WHERE target_user_id = %s AND read = false AND del_yn = 'n'"
+            inbox_query = 'SELECT COUNT(*) FROM "inbox" WHERE "target_user_id" = %s AND "read" = false AND "del_yn" = \'n\''
             inbox_res = self.execute_one(inbox_query, (user_id,))
             if inbox_res: count += inbox_res['count']
         except Exception as e:
