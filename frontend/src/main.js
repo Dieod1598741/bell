@@ -72,9 +72,30 @@ if (window.pywebview && window.pywebview.api && window.pywebview.api.log) {
   console.log('[Frontend] 로그 전달 활성화됨')
 }
 
-// 초기 로드 시 사용자 정보 복원
-const userStore = useUserStore()
-userStore.loadUser()
+// 초기 로드 시 사용자 정보 복원 및 앱 마운트
+const initApp = async () => {
+  console.log('[Frontend] Initializing App (Waiting for Bridge)');
+  const userStore = useUserStore()
 
-app.mount('#app')
+  // 브리지가 준비될 때까지 최대 3초 대기 (이미 준비되어 있을 수도 있음)
+  let waitCount = 0;
+  while (!window.pywebview?.api && waitCount < 30) {
+    await new Promise(r => setTimeout(r, 100));
+    waitCount++;
+  }
+
+  await userStore.loadUser()
+  app.mount('#app')
+  console.log('[Frontend] App Mounted');
+}
+
+// 브리지 준비 이벤트 대기
+if (window.pywebview) {
+  initApp();
+} else {
+  window.addEventListener('pywebviewready', () => {
+    console.log('[Frontend] pywebviewready event received');
+    initApp();
+  });
+}
 

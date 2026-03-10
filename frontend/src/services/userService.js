@@ -23,8 +23,8 @@ export function watchUsers(callback, currentUserId = null) {
         .filter(u => {
           if (u.id === 'admin') return false;
           if (currentUserId && u.id === currentUserId) return false;
-          // 삭제되지 않은 모든 유저를 일단 리스트에 노출 (Relaxed Filter)
-          return u.del_yn !== 'y';
+          // 삭제되지 않고 승격된 유저만 노출 (현업 기준 복구)
+          return u.del_yn !== 'y' && (u.permission === 'approved' || u.permission === 'admin');
         });
       console.log('[userService] watchUsers Result:', users.length);
       callback(users);

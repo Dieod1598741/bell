@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.19"
+CURRENT_VERSION = "v1.1.20"
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -125,7 +125,7 @@ class API:
                             if current_count > last_checked_count and last_checked_count != -1:
                                 self._send_notification("새로운 알림", f"읽지 않은 메시지가 {current_count}개 있습니다.")
                                 # SSE로도 전파하여 프론트엔드 갱신 유도
-                                self.sse_manager.broadcast({"table": "inbox", "action": "update"}, event="DB_UPDATE")
+                                self.sse_manager.broadcast("DB_UPDATE", {"table": "inbox", "action": "update"})
                             
                             last_checked_count = current_count
                 except Exception as e:
@@ -139,11 +139,11 @@ class API:
     def _send_tray_update(self, status=None, count=None):
         """메인 프로세스의 트레이 아이콘 업데이트 (SSE 브로드캐스트)"""
         try:
-            self.sse_manager.broadcast({
-                'action': 'update_tray',
-                'status': status,
-                'count': count
-            }, event='SYSTEM')
+            self.sse_manager.broadcast("DB_UPDATE", {
+                "table": "inbox",
+                "action": "update",
+                "count": count
+            })
         except Exception as e:
             print(f"[API] Tray SSE broadcast failed: {e}")
 
