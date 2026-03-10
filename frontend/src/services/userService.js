@@ -72,13 +72,21 @@ export function watchUsers(callback, currentUserId = null) {
   loadWithRetry();
 
   // 2. SSE 업데이트 감시
-  const unsubscribe = sseClient.on('DB_UPDATE', (update) => {
+  const unsubscribeSSE = sseClient.on('DB_UPDATE', (update) => {
     if (update.table === 'users') {
       loadAndFilterUsers()
     }
   })
 
-  return unsubscribe
+  // 3. 30초 폴링 fallback (SSE 이벤트가 없어도 최대 30초 내 갱신 보장)
+  const pollingInterval = setInterval(() => {
+    loadAndFilterUsers()
+  }, 30000)
+
+  return () => {
+    unsubscribeSSE()
+    clearInterval(pollingInterval)
+  }
 }
 
 

@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.47"
+CURRENT_VERSION = "v1.1.48"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -613,6 +613,8 @@ class API:
             if user_data and user_data.get('id'):
                 self.db_manager.update_user_status(user_data.get('id'), status)
                 print(f"[API] DB 상태 업데이트 완료: {user_data.get('id')} -> {status}")
+                # 다른 사용자에게 실시간 상태 변경 전파
+                self.sse_manager.publish_update("users", "update", {"id": user_data.get('id'), "user_status": status})
             
             # 3. 모듈 레벨 상태 업데이트 (SSE 신규 연결 시 동기화용)
             _current_tray_status = status
@@ -879,7 +881,12 @@ if [ -d "{mount_pt}/Bell.app" ]; then
     cp -R "{mount_pt}/Bell.app" "{dst_app}"
     hdiutil detach "{mount_pt}" -quiet 2>/dev/null
     rm -f "{file_path}"
-    open "{dst_app}"
+    # 새 인스턴스를 강제로 실행 (-n 플래그: 이미 실행 중이어도 새 인스턴스 열기)
+    open -n "{dst_app}"
+    # 새 앱이 트레이까지 초기화할 시간을 충분히 줌 (3초)
+    sleep 3
+    # 기존 프로세스 종료 (새 앱이 이미 트레이를 가져간 상태)
+    kill {os.getppid()} 2>/dev/null || true
 fi
 rm -f "$0"
 """
