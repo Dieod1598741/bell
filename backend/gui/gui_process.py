@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.49"
+CURRENT_VERSION = "v1.1.50"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -906,6 +906,9 @@ taskkill /IM Bell.exe /F >nul 2>&1
 timeout /t 1 /nobreak >nul
 copy /Y "{file_path}" "{current_exe}"
 del /F /Q "{file_path}"
+REM BELL_GUI_MODE 환경변수를 초기화해서 트레이 모드로 시작되게 함
+SET BELL_GUI_MODE=
+SET BELL_IPC_PORT=
 start "" "{current_exe}"
 del "%~f0"
 """
