@@ -6,7 +6,10 @@
     </div>
   </div>
   <!-- 메인 앱 -->
-  <router-view v-else />
+  <div v-else style="position:relative">
+    <UpdateAlert />
+    <router-view />
+  </div>
 </template>
 
 <script setup>
@@ -15,6 +18,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { restoreSession } from '@/composables/useSession'
 import { getUser } from '@/services/userService'
+import UpdateAlert from '@/components/common/UpdateAlert.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
