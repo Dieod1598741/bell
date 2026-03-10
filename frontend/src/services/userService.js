@@ -1,3 +1,28 @@
+import { backendService } from './backendService'
+import { sseClient } from './sseClient'
+
+export async function hashPassword(password) {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(password)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+export async function getUser(userId) {
+  try {
+    if (!userId) return null
+    const result = await backendService.getUserById(userId)
+    if (result.success && result.data) {
+      return result.data
+    }
+    return null
+  } catch (error) {
+    console.error('[userService] 사용자 조회 실패:', error)
+    throw error
+  }
+}
+
 // 데이터 보강 공통 함수
 const hydrateUser = (u, currentUserId = null) => {
   return {
