@@ -139,6 +139,8 @@ class DBManager:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute(query, params)
                     if fetch:
+                        # INSERT ... RETURNING * 등의 쿼리도 commit이 필요
+                        conn.commit()
                         result = cur.fetchall()
                         # RealDictRow를 일반 dict로 변환하고 datetime 등 직렬화 불가능한 타입 처리
                         processed_result = []
