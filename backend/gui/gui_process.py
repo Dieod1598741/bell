@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.33"
+CURRENT_VERSION = "v1.1.34"
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -139,11 +139,14 @@ class API:
     def _send_tray_update(self, status=None, count=None):
         """메인 프로세스의 트레이 아이콘 업데이트 (SSE 브로드캐스트)"""
         try:
-            self.sse_manager.broadcast("DB_UPDATE", {
-                "table": "inbox",
-                "action": "update",
-                "count": count
-            })
+            payload = {"action": "update_tray"}
+            if status is not None:
+                payload["status"] = status
+            if count is not None:
+                payload["count"] = count
+            # main.py SSE 리스너는 event='SYSTEM', action='update_tray' 를 기대함
+            self.sse_manager.broadcast("SYSTEM", payload)
+            print(f"[API] Tray update sent → {payload}")
         except Exception as e:
             print(f"[API] Tray SSE broadcast failed: {e}")
 
@@ -545,11 +548,14 @@ class API:
             # 1. 로컬 저장
             result = self.user_manager.save_user_status(status)
             
-            # 2. DB 저장 (추가됨)
+            # 2. DB 저장
             user_data = self.user_manager.get_user()
             if user_data and user_data.get('id'):
                 self.db_manager.update_user_status(user_data.get('id'), status)
                 print(f"[API] DB 상태 업데이트 완료: {user_data.get('id')} -> {status}")
+            
+            # 3. 트레이 아이콘 즉시 반영 ← 이 줄이 없어서 트레이가 오프라인으로 고정됐음
+            self._send_tray_update(status=status)
             
             if result:
                 return {"success": True, "message": "상태 저장 완료"}
