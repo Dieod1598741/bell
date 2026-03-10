@@ -61,20 +61,32 @@ class PystrayTrayManager(BaseTrayManager):
             canvas = Image.new('RGBA', (SIZE, SIZE), (255, 255, 255, 255) if is_windows else (0, 0, 0, 0))
 
             # ─────────────────────────────────────────────────
-            # 2. 아이콘 PNG 로드 및 합성
+            # 2. 아이콘 배경 + 아이콘 합성
             # ─────────────────────────────────────────────────
+            # macOS: 아이콘 색상이 무엇이든 보이도록 어두운 배경 원을 먼저 그림
+            # Windows: 흰색 배경 이미 있음
+            draw_bg = ImageDraw.Draw(canvas)
+            if not is_windows:
+                # 어두운 네이비 블루 배경 (macOS 메뉴바 라이트/다크 모드 모두에서 잘 보임)
+                BG_COLOR = (30, 58, 138, 230)   # 짙은 파랑, 약간 반투명
+                pad_bg = 1
+                draw_bg.rounded_rectangle(
+                    [pad_bg, pad_bg, SIZE - pad_bg, SIZE - pad_bg],
+                    radius=SIZE // 4,
+                    fill=BG_COLOR
+                )
+
             if self.icon_path and os.path.exists(self.icon_path):
+                # 아이콘을 캔버스의 80% 크기로 (배경이 테두리처럼 보이도록 여백 확보)
+                icon_size = int(SIZE * 0.72)
+                offset = (SIZE - icon_size) // 2
                 icon_img = Image.open(self.icon_path).convert('RGBA')
-                icon_img = icon_img.resize((SIZE, SIZE), Image.Resampling.LANCZOS)
-                # paste의 세 번째 인자(mask=icon_img)가 핵심:
-                # PNG의 알파 채널을 마스크로 활용 → 투명부분은 캔버스(배경)가 그대로, 불투명부분만 아이콘으로 채워짐
-                canvas.paste(icon_img, (0, 0), icon_img)
+                icon_img = icon_img.resize((icon_size, icon_size), Image.Resampling.LANCZOS)
+                # 알파 마스크로 합성
+                canvas.paste(icon_img, (offset, offset), icon_img)
             else:
-                # 아이콘 파일 없으면 파란 둥근 사각형으로 대체
-                draw_tmp = ImageDraw.Draw(canvas)
-                m = SIZE // 6
-                draw_tmp.rounded_rectangle([m, m, SIZE - m, SIZE - m], radius=SIZE // 5, fill=(59, 130, 246, 255))
-                print(f"[Pystray] ⚠️ 아이콘 파일 없음, 기본 도형으로 대체. path={self.icon_path}")
+                # 아이콘 파일 없으면 배경색만으로 표시 (이미 위에서 그려짐)
+                print(f"[Pystray] ⚠️ 아이콘 파일 없음, 배경 도형으로 대체. path={self.icon_path}")
 
             draw = ImageDraw.Draw(canvas)
 
