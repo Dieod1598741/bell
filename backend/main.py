@@ -64,23 +64,27 @@ class BellApp:
         import threading
         import time
 
+        # 포트를 공유 참조로 관리 (GUI 재시작 시 업데이트 가능)
+        self._sse_port = port
+
         def listen():
-            url = f"http://localhost:{port}/events"
-            print(f"[SSE-IPC] Connecting to {url}...")
-            
-            retry_count = 0
-            while retry_count < 10:
+            print(f"[SSE-IPC] Connecting to http://localhost:{self._sse_port}/events...")
+            consecutive_fails = 0
+
+            while True:  # 무한 재시도 (앱 종료 시 daemon thread라 자동 종료)
+                url = f"http://localhost:{self._sse_port}/events"
                 try:
                     req = urllib.request.Request(url)
                     with urllib.request.urlopen(req) as response:
                         print("[SSE-IPC] Connected successfully.")
+                        consecutive_fails = 0  # 성공 시 실패 카운트 리셋
                         current_event = None
                         for line in response:
                             line = line.decode('utf-8').strip()
                             if not line:
                                 current_event = None
                                 continue
-                            
+
                             if line.startswith("event:"):
                                 current_event = line.replace("event:", "").strip()
                             elif line.startswith("data:"):
@@ -101,16 +105,21 @@ class BellApp:
                                                     command.get('title'),
                                                     command.get('message')
                                                 )
-                                except:
+                                except Exception:
                                     pass
                 except Exception as e:
-                    print(f"[SSE-IPC] Connection lost or failed: {e}")
-                    time.sleep(1)
-                    retry_count += 1
-            print("[SSE-IPC] Listener stopped.")
+                    consecutive_fails += 1
+                    wait = min(consecutive_fails, 5)  # 최대 5초 대기
+                    print(f"[SSE-IPC] Connection lost: {e} (재시도 {consecutive_fails}번째, {wait}초 후)")
+                    time.sleep(wait)
 
         self.sse_thread = threading.Thread(target=listen, daemon=True)
         self.sse_thread.start()
+
+    def _update_sse_port(self, new_port):
+        """GUI 재시작 시 SSE 포트 업데이트"""
+        self._sse_port = new_port
+        print(f"[SSE-IPC] Port updated to {new_port}")
     
     def show_window(self):
         """GUI 창 열기"""
@@ -175,12 +184,16 @@ class BellApp:
             sse_started = False
             for line in iter(process.stdout.readline, ''):
                 print(f"[GUI] {line.strip()}")
-                if not sse_started and "BELL_PORT:" in line:
+                if "BELL_PORT:" in line:
                     try:
                         port = int(line.split("BELL_PORT:")[1].strip())
-                        self._start_sse_listener(port)
-                        sse_started = True
-                    except:
+                        if not sse_started:
+                            self._start_sse_listener(port)
+                            sse_started = True
+                        else:
+                            # GUI 재시작: 새 포트로 SSE URL 업데이트
+                            self._update_sse_port(port)
+                    except Exception:
                         pass
             process.stdout.close()
             
