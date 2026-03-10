@@ -428,13 +428,14 @@ class API:
     def getMessages(self, user_id, current_user_id, limit_val=50):
         """채팅 메시지 로드 (PostgreSQL)"""
         try:
-            query = 'SELECT * FROM "chats" WHERE ("sender_user_id" = %s AND "target_user_id" = %s) OR ("sender_user_id" = %s AND "target_user_id" = %s) AND "del_yn" = \'n\' ORDER BY "created_at" ASC LIMIT %s'
+            query = 'SELECT * FROM "chats" WHERE (("sender_user_id" = %s AND "target_user_id" = %s) OR ("sender_user_id" = %s AND "target_user_id" = %s)) AND "del_yn" = \'n\' ORDER BY "created_at" ASC LIMIT %s'
             result, error = self.db_manager.execute_query(query, (user_id, current_user_id, current_user_id, user_id, limit_val))
             if error:
+                print(f"[API] getMessages DB 오류: {error}")
                 return {"success": False, "error": f"메시지 조회 실패: {error}"}
             return {"success": True, "data": result or []}
         except Exception as e:
-            print(f"[API] getMessages 오류: {e}")
+            print(f"[API] getMessages 예외 오류: {e}")
             return {"success": False, "error": str(e)}
 
     def getInbox(self, user_id, limit_val=50):
@@ -465,9 +466,12 @@ class API:
         try:
             query = 'SELECT "id", "name", "nick_nm", "avatar", "user_status", "connection_status", "permission", "del_yn" FROM "users" WHERE "del_yn" = \'n\' ORDER BY "nick_nm" ASC'
             result, error = self.db_manager.execute_query(query)
+            if error:
+                print(f"[API] getAllUsers DB 오류: {error}")
+                return {"success": False, "error": f"사용자 목록 조회 실패: {error}"}
             return {"success": True, "data": result or []}
         except Exception as e:
-            print(f"[API] getAllUsers 오류: {e}")
+            print(f"[API] getAllUsers 예외 오류: {e}")
             return {"success": False, "error": str(e)}
 
     def getUserStatus(self):
