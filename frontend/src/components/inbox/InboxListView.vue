@@ -54,6 +54,8 @@
       :item="selectedItem"
       @update:visible="showDetailLayer = $event"
       @reply="handleReply"
+      @accept="handleAccept"
+      @reject="handleReject"
     />
     
     <!-- 답장 레이어 -->
@@ -71,6 +73,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { watchInbox, markMessageRead, markAllInboxAsRead, deleteInboxMessage, sendInboxMessage } from '@/services/inboxService'
 import { loadUsers } from '@/services/userService'
+import { backendService } from '@/services/backendService'
 import MessageInboxItem from '@/components/inbox/MessageInboxItem.vue'
 import InboxDetailLayer from '@/components/layers/InboxDetailLayer.vue'
 import NoteLayer from '@/components/layers/NoteLayer.vue'
@@ -181,10 +184,33 @@ const handleReplySubmit = async (data) => {
   }
 }
 
+const handleAccept = async (item) => {
+  try {
+    await backendService.replyInboxMessage(item.id, 'accepted')
+    const idx = allInbox.value.findIndex(m => m.id === item.id)
+    if (idx !== -1) allInbox.value[idx].status = 'accepted'
+    if (selectedItem.value?.id === item.id) selectedItem.value = { ...selectedItem.value, status: 'accepted' }
+    ElMessage.success('회의를 수락했습니다.')
+  } catch (e) {
+    ElMessage.error('수락 처리 중 오류가 발생했습니다.')
+  }
+}
+
+const handleReject = async (item) => {
+  try {
+    await backendService.replyInboxMessage(item.id, 'rejected')
+    const idx = allInbox.value.findIndex(m => m.id === item.id)
+    if (idx !== -1) allInbox.value[idx].status = 'rejected'
+    if (selectedItem.value?.id === item.id) selectedItem.value = { ...selectedItem.value, status: 'rejected' }
+    ElMessage.info('회의를 거절했습니다.')
+  } catch (e) {
+    ElMessage.error('거절 처리 중 오류가 발생했습니다.')
+  }
+}
+
 const openDetail = async (item) => {
   selectedItem.value = item
   showDetailLayer.value = true
-  // 읽음 처리 (inbox 컬렉션)
   if (!item.read) {
     await markMessageRead(item.id, 'inbox')
     item.read = true

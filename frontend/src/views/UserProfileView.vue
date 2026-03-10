@@ -257,10 +257,12 @@ const handleNoteSubmit = async (data) => {
     const userStore = useUserStore()
     const currentUserId = userStore.user?.id
     if (currentUserId) {
-      await sendInboxMessage(currentUserId, data.userId, data.message)
+      await sendInboxMessage(currentUserId, data.userId, data.message, data.type || 'message')
+      ElMessage.success('쪽지가 전송되었습니다.')
     }
   } catch (error) {
     console.error('쪽지 전송 실패:', error)
+    ElMessage.error('쪽지 전송에 실패했습니다.')
   }
 }
 
@@ -270,10 +272,12 @@ const handleMeetingSubmit = async (data) => {
     const userStore = useUserStore()
     const currentUserId = userStore.user?.id
     if (currentUserId) {
-      await sendInboxMessage(currentUserId, data.userId, data.message)
+      await sendInboxMessage(currentUserId, data.userId, data.message, 'meeting')
+      ElMessage.success('회의 요청이 전송되었습니다.')
     }
   } catch (error) {
     console.error('회의 요청 실패:', error)
+    ElMessage.error('회의 요청 전송에 실패했습니다.')
   }
 }
 
@@ -283,10 +287,12 @@ const handleMailSubmit = async (data) => {
     const userStore = useUserStore()
     const currentUserId = userStore.user?.id
     if (currentUserId) {
-      await sendInboxMessage(currentUserId, data.userId, data.message)
+      await sendInboxMessage(currentUserId, data.userId, data.message, 'mail')
+      ElMessage.success('이메일 확인 요청이 전송되었습니다.')
     }
   } catch (error) {
     console.error('이메일 확인 요청 실패:', error)
+    ElMessage.error('이메일 확인 요청 전송에 실패했습니다.')
   }
 }
 
