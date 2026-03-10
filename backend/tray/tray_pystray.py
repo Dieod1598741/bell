@@ -198,14 +198,44 @@ class PystrayTrayManager(BaseTrayManager):
             # 메뉴 내 상태 표시 텍스트 갱신을 위해 메뉴 재생성 고려 (필요시)
 
     def show_notification(self, title, message):
-        """시스템 알림 출력 (plyer 활용)"""
+        """시스템 알림 출력 (macOS/Windows 크로스플랫폼)"""
+        import platform
+        system = platform.system()
+        
+        # ── 아이콘 경로 결정 ───────────────────────────────────
+        # Windows는 .ico, macOS는 .png 사용
+        icon_path = None
+        if system == 'Windows':
+            for name in ['bell_icon.ico', 'icon.ico']:
+                p = resource_path(name)
+                if os.path.exists(p):
+                    icon_path = p
+                    break
+        else:
+            # self.icon_path가 None 이어도 안전하게 처리
+            if self.icon_path and os.path.exists(self.icon_path):
+                icon_path = self.icon_path
+
+        # ── macOS: AppKit 직접 호출 (plyer보다 안정적) ─────────
+        if system == 'Darwin':
+            try:
+                import subprocess
+                script = f'display notification "{message}" with title "{title}"'
+                subprocess.run(['osascript', '-e', script], check=False, timeout=3)
+                print(f"[Pystray] 알림 전송 (osascript): {title}")
+                return
+            except Exception as e:
+                print(f"[Pystray] osascript 알림 실패: {e}, plyer로 재시도")
+
+        # ── Windows / 폴백: plyer ─────────────────────────────
         try:
             notification.notify(
                 title=title,
                 message=message,
                 app_name='Bell',
-                app_icon=self.icon_path if os.path.exists(self.icon_path) else None,
+                app_icon=icon_path,   # None 이면 plyer가 기본 아이콘 사용
                 timeout=5
             )
+            print(f"[Pystray] 알림 전송 (plyer): {title}")
         except Exception as e:
             print(f"[Pystray] 알림 출력 실패: {e}")

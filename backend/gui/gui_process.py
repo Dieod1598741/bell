@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.26"
+CURRENT_VERSION = "v1.1.27"
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -624,45 +624,59 @@ class API:
             return {"success": False, "error": str(e)}
     
     def showNotification(self, title, message, notification_type='info', sender_name=None):
-        """시스템 알림 표시 (macOS/Windows - plyer 사용)"""
+        """시스템 알림 표시 (macOS/Windows 크로스플랫폼)"""
         self._update_backend_request_time()
+        import platform
+        system = platform.system()
+        
+        # ── 아이콘 경로 결정 ───────────────────────────────────
+        def find_icon(ext):
+            """플랫폼 별 아이콘 파일 탐색"""
+            candidates = [f'bell_icon{ext}', f'icon{ext}']
+            for name in candidates:
+                if getattr(sys, 'frozen', False):
+                    for sub in ['.', 'tray', 'backend/tray']:
+                        p = os.path.join(sys._MEIPASS, sub, name)
+                        if os.path.exists(p):
+                            return p
+                else:
+                    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    p = os.path.join(backend_dir, 'tray', name)
+                    if os.path.exists(p):
+                        return p
+            return None
+        
+        icon_path = find_icon('.ico') if system == 'Windows' else find_icon('.png')
+        print(f"[API] 알림 전송: {title} – {message} (icon={icon_path})")
+        
+        # ── macOS: osascript 직접 사용 (plyer보다 안정적) ─────
+        if system == 'Darwin':
+            try:
+                import subprocess
+                # 특수문자 이스케이프
+                safe_title   = title.replace('"', '\\"')
+                safe_message = message.replace('"', '\\"')
+                script = f'display notification "{safe_message}" with title "{safe_title}"'
+                subprocess.run(['osascript', '-e', script], check=False, timeout=5)
+                return {"success": True}
+            except Exception as e:
+                print(f"[API] osascript 알림 실패: {e}, plyer로 재시도")
+        
+        # ── Windows / 폴백: plyer ─────────────────────────────
         try:
             from plyer import notification
-            import platform
-            
-            # 아이콘 경로 설정
-            if getattr(sys, 'frozen', False):
-                base_path = sys._MEIPASS
-                icon_ext = '.ico' if platform.system() == 'Windows' else '.png'
-                icon_path = os.path.join(base_path, 'backend', 'tray', f'icon{icon_ext}')
-            else:
-                backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                icon_ext = '.ico' if platform.system() == 'Windows' else '.png'
-                icon_path = os.path.join(backend_dir, 'tray', f'icon{icon_ext}')
-
-            if not os.path.exists(icon_path):
-                icon_path = None
-
-            print(f"[API] 알림 전송 (plyer): {title} - {message}")
-            
             notification.notify(
                 title=title,
                 message=message,
                 app_name='Bell',
-                app_icon=icon_path,
+                app_icon=icon_path,   # None 안전 (plyer가 기본값 사용)
                 timeout=10,
             )
-            
             return {"success": True}
-                
         except Exception as e:
             print(f"[API] 알림 표시 오류: {e}")
-            import traceback
-            traceback.print_exc()
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            import traceback; traceback.print_exc()
+            return {"success": False, "error": str(e)}
     
     # ─── 자동 업데이트 ────────────────────────────────────────────
     
