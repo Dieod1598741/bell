@@ -36,7 +36,10 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.41"
+CURRENT_VERSION = "v1.1.42"
+
+# 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
+_current_tray_status = 'offline'
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -541,6 +544,7 @@ class API:
     
     def saveUserStatus(self, status):
         """사용자 상태 저장"""
+        global _current_tray_status
         try:
             if not status:
                 return {"success": False, "error": "status가 필요합니다"}
@@ -554,7 +558,10 @@ class API:
                 self.db_manager.update_user_status(user_data.get('id'), status)
                 print(f"[API] DB 상태 업데이트 완료: {user_data.get('id')} -> {status}")
             
-            # 3. 트레이 아이콘 즉시 반영 ← 이 줄이 없어서 트레이가 오프라인으로 고정됐음
+            # 3. 모듈 레벨 상태 업데이트 (SSE 신규 연결 시 동기화용)
+            _current_tray_status = status
+            
+            # 4. 트레이 아이콘 즉시 반영
             self._send_tray_update(status=status)
             
             if result:
@@ -909,6 +916,12 @@ class SimpleWebHandler(SimpleHTTPRequestHandler):
             try:
                 # 초기 연결 성공 알림
                 self.wfile.write(b"data: {\"status\": \"connected\"}\n\n")
+                self.wfile.flush()
+                
+                # 현재 트레이 상태를 즉시 전송 (SSE 연결 타이밍 경쟁 조건 해소)
+                import json as _json
+                _sync_payload = _json.dumps({"action": "update_tray", "status": _current_tray_status})
+                self.wfile.write(f"event: SYSTEM\ndata: {_sync_payload}\n\n".encode('utf-8'))
                 self.wfile.flush()
                 
                 while True:
