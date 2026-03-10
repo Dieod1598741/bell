@@ -208,7 +208,7 @@ class API:
             return {"success": False, "error": str(e)}
     
     def getUserInfo(self):
-        """사용자 정보 조회 (DB 우선)"""
+        """사용자 정보 조회 (DB 우선, 로컬 보완)"""
         try:
             self._update_backend_request_time()
             user_data = self.user_manager.get_user()
@@ -218,11 +218,18 @@ class API:
             # DB에서 최신 정보 가져오기
             db_user = self.db_manager.get_user(user_data.get('id'))
             if db_user:
-                # 로컬 정보 동기화 (선택사항)
+                # DB 정보가 최신이므로 로컬 동기화
                 self.user_manager.save_user(db_user)
-                return {"success": True, "data": db_user}
+                return {"success": True, "data": db_user, "db_synced": True}
             
-            return {"success": True, "data": user_data}
+            # DB에 없는데 로컬엔 있는 경우 (동기화 누락 상태)
+            print(f"[API] Warning: User {user_data.get('id')} found locally but not in DB.")
+            return {
+                "success": True, 
+                "data": user_data, 
+                "db_synced": False, 
+                "message": "데이터베이스와 동기화되지 않은 계정입니다. 다시 가입하거나 관리자에게 문의하세요."
+            }
         except Exception as e:
             print(f"[API] getUserInfo 오류: {e}")
             return {"success": False, "error": str(e)}
