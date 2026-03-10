@@ -12,34 +12,67 @@ class SSEManager:
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super(SSEManager, cls).__new__(cls)
-                # _initialized flag will be set in __init__
-                # clients will be initialized in __init__
         return cls._instance
 
     def __init__(self):
-        # Initialize clients and instance-level lock only on the first call to __init__
         if not hasattr(self, '_initialized'):
             self.clients = []
-            self.lock = threading.Lock() # Instance-level lock for client list modification
+            self.lock = threading.Lock()
             self._initialized = True
             print("[SSEManager] Initialized singleton")
 
-    def add_client(self):
+
         q = queue.Queue()
-        with self.lock: # Use the instance-level lock to protect clients list
+        with self.lock:
             self.clients.append(q)
         print(f"[SSE] New client connected. Total clients: {len(self.clients)}")
         return q
 
     def remove_client(self, q):
-            self.clients.remove(q)
-            print(f"[SSE] Client disconnected. Total clients: {len(self.clients)}")
+        with self.lock:
+            try:
+                self.clients.remove(q)
+            except ValueError:
+                pass
+        print(f"[SSE] Client disconnected. Total clients: {len(self.clients)}")
 
     def broadcast(self, event_type, data):
-        """모든 클라이언트에게 이벤트 전송"""
+        """모든 클라이언트에게 이벤트 전송 (SSE큐 + pywebview evaluate_js 이중 전송)"""
         message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
-        for q in self.clients:
-            q.put(message)
+
+        # 1. SSE 큐 전송 (HTTP EventSource 연결된 경우)
+        with self.lock:
+            dead = []
+            for q in self.clients:
+                try:
+                    q.put(message)
+                except Exception:
+                    dead.append(q)
+            for q in dead:
+                try:
+                    self.clients.remove(q)
+                except ValueError:
+                    pass
+
+        # 2. pywebview evaluate_js 직접 전송 (가장 확실한 방법)
+        try:
+            import webview
+            payload_json = json.dumps({"type": event_type, "data": data})
+            js = f"""
+(function() {{
+    try {{
+        var ev = new CustomEvent('bell-sse', {{detail: {payload_json}}});
+        window.dispatchEvent(ev);
+    }} catch(e) {{}}
+}})();
+"""
+            for win in webview.windows:
+                try:
+                    win.evaluate_js(js)
+                except Exception:
+                    pass
+        except Exception as e:
+            pass  # webview 미사용 환경에서는 무시
 
     def publish_update(self, table, action, record=None):
         """데이터 변경 이벤트 브로드캐스트"""
