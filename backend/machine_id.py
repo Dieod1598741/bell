@@ -52,8 +52,11 @@ def get_hardware_uuid_macos() -> str:
 
 def get_hardware_uuid_windows() -> str:
     """Windows에서 하드웨어 UUID 가져오기"""
+    import re
+    uuid_pattern = re.compile(r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$')
+
+    # 방법 1: wmic (Windows 10 이하)
     try:
-        # WMI를 통해 가져오기
         result = subprocess.run(
             ['wmic', 'csproduct', 'get', 'uuid'],
             capture_output=True,
@@ -61,15 +64,43 @@ def get_hardware_uuid_windows() -> str:
             timeout=5
         )
         if result.returncode == 0:
-            lines = result.stdout.strip().split('\n')
-            for line in lines:
+            for line in result.stdout.strip().split('\n'):
                 line = line.strip()
-                # UUID 형식 확인 (XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX)
-                if line and len(line) == 36 and line.count('-') == 4:
+                if uuid_pattern.match(line):
                     return line
+    except Exception:
+        pass
+
+    # 방법 2: PowerShell (Windows 11+ 에서 wmic deprecated 대응)
+    try:
+        result = subprocess.run(
+            ['powershell', '-NoProfile', '-Command',
+             '(Get-CimInstance Win32_ComputerSystemProduct).UUID'],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            creationflags=0x08000000  # CREATE_NO_WINDOW
+        )
+        if result.returncode == 0:
+            uuid = result.stdout.strip()
+            if uuid_pattern.match(uuid):
+                return uuid
     except Exception as e:
-        print(f"[machine_id] Windows UUID 가져오기 실패: {e}")
-    
+        print(f"[machine_id] PowerShell UUID 실패: {e}")
+
+    # 방법 3: MAC 주소로 안정적 ID 생성 (마지막 폴백)
+    try:
+        import uuid as uuid_module
+        import hashlib
+        mac = uuid_module.getnode()
+        # MAC + 고정 salt로 sha256 → UUID 형식으로 변환
+        h = hashlib.sha256(f"bell_mac_{mac}".encode()).hexdigest()
+        stable_id = f"{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
+        print(f"[machine_id] MAC 기반 폴백 ID 사용: {stable_id}")
+        return stable_id
+    except Exception as e:
+        print(f"[machine_id] MAC 기반 폴백 실패: {e}")
+
     return None
 
 
