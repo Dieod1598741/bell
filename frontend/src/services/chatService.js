@@ -27,14 +27,9 @@ export function watchMessages(userId, currentUserId, callback) {
 export function watchChats(currentUserId, callback) {
   // 채팅 목록 감시 (최근 메시지 기반)
   const loadChats = async () => {
-    // 모든 관련 사용자와의 마지막 메시지를 가져와야 함
-    // 여기선 단순화를 위해 getMessages의 전체 버전 또는 캐시 활용 가능
-    // 일단 전체 사용자 목록을 가져와서 관련 메시지 확인 로직 필요
-    // 현재는 단순 API 호출로 대체
-    const result = await backendService.getAllUsers()
+    const result = await backendService.getRecentChats(currentUserId)
     if (result.success) {
-      // 실제로는 대화가 있는 사용자만 필터링하는 로직이 백엔드에 있는 것이 좋음
-      callback([])
+      callback(result.data || [])
     }
   }
 

@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.44"
+CURRENT_VERSION = "v1.1.45"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -473,6 +473,38 @@ class API:
             print(f"[API] sendAnnouncement 오류: {e}")
             return {"success": False, "error": str(e)}
     
+    def getRecentChats(self, current_user_id):
+        """나와 대화한 적 있는 모든 사용자와의 최근 메시지 목록 반환"""
+        try:
+            # 내가 보냈거나 받은 메시지 중, 각 상대방별 가장 최근 메시지 1개씩
+            query = '''
+                SELECT DISTINCT ON (partner_id)
+                    partner_id,
+                    id, sender_user_id, target_user_id, content, timestamp, read, del_yn
+                FROM (
+                    SELECT
+                        CASE
+                            WHEN sender_user_id = %s THEN target_user_id
+                            ELSE sender_user_id
+                        END AS partner_id,
+                        id, sender_user_id, target_user_id, content, timestamp, read, del_yn
+                    FROM chats
+                    WHERE (sender_user_id = %s OR target_user_id = %s)
+                      AND del_yn = 'n'
+                ) sub
+                ORDER BY partner_id, timestamp DESC
+            '''
+            result, error = self.db_manager.execute_query(
+                query, (current_user_id, current_user_id, current_user_id)
+            )
+            if error:
+                print(f"[API] getRecentChats DB 오류: {error}")
+                return {"success": False, "error": error}
+            return {"success": True, "data": result or []}
+        except Exception as e:
+            print(f"[API] getRecentChats 예외 오류: {e}")
+            return {"success": False, "error": str(e)}
+
     def getMessages(self, user_id, current_user_id, limit_val=50):
         """채팅 메시지 로드 (PostgreSQL)"""
         try:

@@ -35,6 +35,7 @@ export const backendService = {
 
     // Chat
     getMessages: (userId, currentUserId) => callBackend('getMessages', userId, currentUserId),
+    getRecentChats: (currentUserId) => callBackend('getRecentChats', currentUserId),
     sendChatMessage: (senderId, targetId, content) => callBackend('sendChatMessage', senderId, targetId, content),
     markMessageRead: (messageId, type) => callBackend('markMessageRead', messageId, type),
 
