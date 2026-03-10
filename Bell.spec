@@ -44,44 +44,67 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    [],
-    exclude_binaries=True,
-    name='Bell',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    console=False,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon=['backend/tray/icon.icns'] if sys.platform == 'darwin' else ['backend/tray/bell_icon.png'],
-)
+if sys.platform == 'win32':
+    exe = EXE(
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        name='Bell',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        runtime_tmpdir=None,
+        console=False,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+        icon='backend/tray/bell_icon.png',
+    )
+else:
+    exe = EXE(
+        pyz,
+        a.scripts,
+        [],
+        exclude_binaries=True,
+        name='Bell',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        console=False,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+        icon='backend/tray/icon.icns',
+    )
 
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='Bell',
-)
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        name='Bell',
+    )
 
-app = BUNDLE(
-    coll,
-    name='Bell.app',
-    icon='backend/tray/icon.icns',
-    bundle_identifier='com.bell.app',
-    info_plist={
-        'NSHighResolutionCapable': 'True',
-        'LSBackgroundOnly': 'False',
-        'NSAppleEventsUsageDescription': 'Bell requires access to show notifications.',
-    },
-)
+    app = BUNDLE(
+        coll,
+        name='Bell.app',
+        icon='backend/tray/icon.icns',
+        bundle_identifier='com.bell.app',
+        info_plist={
+            'NSHighResolutionCapable': 'True',
+            'LSBackgroundOnly': 'False',
+            'NSAppleEventsUsageDescription': 'Bell requires access to show notifications.',
+        },
+    )

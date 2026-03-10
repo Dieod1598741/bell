@@ -99,7 +99,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bell-windows
-          path: dist/Bell/Bell.exe
+          path: dist/Bell.exe
 
   release:
     needs: [build-macos, build-windows]
