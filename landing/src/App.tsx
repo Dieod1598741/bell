@@ -8,12 +8,10 @@ function App() {
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 5000)
 
-        fetch('https://api.github.com/repos/Dieod1598741/bell/releases/latest', {
-            signal: controller.signal,
-            headers: { 'Accept': 'application/vnd.github+json' }
-        })
+        // /api/version: Cloudflare Pages Function이 GitHub API를 서버 사이드에서 캐싱
+        fetch('/api/version', { signal: controller.signal })
             .then(r => r.json())
-            .then(data => setLatestVersion(data.tag_name || data.name || '알 수 없음'))
+            .then(data => setLatestVersion(data.version || '최신'))
             .catch(() => setLatestVersion('최신'))
             .finally(() => clearTimeout(timeout))
     }, [])
