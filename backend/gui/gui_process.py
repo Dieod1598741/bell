@@ -816,6 +816,7 @@ if [ -d "$src_app" ]; then
         rsync -a --delete "$src_app/" "{dst_app}/" || {{
             echo "[update] rsync also failed"
             hdiutil detach "$mount_pt" -quiet 2>/dev/null || true
+            rm -f "{DATA_DIR}/pending_update.txt"
             open "{file_path}"
             exit 1
         }}
@@ -823,18 +824,21 @@ if [ -d "$src_app" ]; then
     echo "[update] copy done"
     hdiutil detach "$mount_pt" -quiet 2>/dev/null || true
     rm -f "{file_path}"
-    
+    # 설치 완료 - pending_update.txt 삭제 (앱 재시작 시 배너 재표시 방지)
+    rm -f "{DATA_DIR}/pending_update.txt"
+
     # 새 인스턴스 실행
     echo "[update] opening {dst_app}"
     open -n "{dst_app}"
     sleep 4
-    
+
     # 기존 트레이 프로세스 종료
     echo "[update] killing old process {parent_pid}"
     kill {parent_pid} 2>/dev/null || true
 else
     echo "[update] Bell.app not found in DMG, opening DMG manually"
     hdiutil detach "$mount_pt" -quiet 2>/dev/null || true
+    rm -f "{DATA_DIR}/pending_update.txt"
     open "{file_path}"
 fi
 echo "[update] done"
