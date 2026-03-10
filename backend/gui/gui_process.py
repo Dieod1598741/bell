@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.65"
+CURRENT_VERSION = "v1.1.66"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -479,14 +479,33 @@ class API:
             return {"success": False, "error": str(e)}
 
     def markMessageRead(self, message_id, msg_type='chat'):
-        """메시지 읽음 처리"""
+        """메시지 읽음 처리 (read_at 타임스탬프 저장)"""
         try:
             table = 'chats' if msg_type == 'chat' else 'inbox'
-            query = f"UPDATE {table} SET read = TRUE WHERE id = %s"
-            self.db_manager.execute_query(query, (message_id,), fetch=False)
+            # read_at 컬럼이 있으면 타임스탬프, 없으면 read = TRUE fallback
+            try:
+                query = f"UPDATE {table} SET read_at = NOW() WHERE id = %s"
+                self.db_manager.execute_query(query, (message_id,), fetch=False)
+            except Exception:
+                query = f"UPDATE {table} SET read = TRUE WHERE id = %s"
+                self.db_manager.execute_query(query, (message_id,), fetch=False)
             return {"success": True}
         except Exception as e:
             print(f"[API] markMessageRead 오류: {e}")
+            return {"success": False, "error": str(e)}
+
+    def replyInboxMessage(self, message_id, action):
+        """인박스 메시지 수락/거절 (회의 요청 응답)"""
+        try:
+            if action not in ('accepted', 'rejected'):
+                return {"success": False, "error": "유효하지 않은 action"}
+            query = "UPDATE inbox SET status = %s, read_at = NOW() WHERE id = %s RETURNING *"
+            result, error = self.db_manager.execute_query(query, (action, message_id))
+            if error:
+                return {"success": False, "error": str(error)}
+            return {"success": True, "data": result[0] if result else None}
+        except Exception as e:
+            print(f"[API] replyInboxMessage 오류: {e}")
             return {"success": False, "error": str(e)}
 
     def getAllUsers(self):
@@ -750,12 +769,18 @@ class API:
 
             total = int(resp.headers.get("content-length", 0))
             downloaded = 0
+            last_progress = -1
 
             with open(save_path, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=65536):
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
+                        if total > 0:
+                            progress = int(downloaded / total * 100)
+                            if progress != last_progress and progress % 5 == 0:
+                                last_progress = progress
+                                self.sse_manager.broadcast("DOWNLOAD_PROGRESS", {"progress": progress})
 
             # 파일 크기 검증 (최소 100KB - HTML 에러 페이지 방지)
             file_size = os.path.getsize(save_path)

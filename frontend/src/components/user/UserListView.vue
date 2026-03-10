@@ -55,6 +55,10 @@ const props = defineProps({
   selectedUserId: {
     type: String,
     default: null
+  },
+  searchQuery: {
+    type: String,
+    default: ''
   }
 })
 
@@ -65,6 +69,11 @@ const listContainer = ref(null)
 const allUsers = ref([])
 const isLoading = ref(true)
 let unwatchUsers = null
+
+// MainView에서 prop으로 받은 searchQuery를 내부 ref에 동기화
+watch(() => props.searchQuery, (val) => {
+  searchQuery.value = val
+}, { immediate: true })
 
 const filteredUsers = computed(() => {
   if (!searchQuery.value) return allUsers.value

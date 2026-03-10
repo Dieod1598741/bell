@@ -5,18 +5,32 @@
         <el-icon class="mr-2"><Bell /></el-icon>
         <span class="version-text">새 버전이 출시되었습니다: <strong>{{ latestVersion }}</strong></span>
         <div class="actions">
-          <el-button 
-            type="primary" 
-            size="small" 
-            class="update-btn"
-            :loading="isDownloading"
-            @click="handleUpdate"
-          >
-            {{ isDownloaded ? '설치 및 재시작' : (isDownloading ? '다운로드 중...' : '업데이트') }}
-          </el-button>
-          <el-button 
-            type="info" 
-            size="small" 
+          <!-- 다운로드 중: 프로그레스바 -->
+          <div v-if="isDownloading" class="progress-area">
+            <el-progress
+              :percentage="downloadProgress"
+              :stroke-width="6"
+              status="striped"
+              striped-flow
+              :duration="5"
+              style="width: 160px;"
+            />
+            <span class="progress-text">{{ downloadProgress }}%</span>
+          </div>
+          <!-- 다운로드 전/완료 버튼 -->
+          <template v-else>
+            <el-button
+              type="primary"
+              size="small"
+              class="update-btn"
+              @click="handleUpdate"
+            >
+              {{ isDownloaded ? '설치 및 재시작' : '업데이트' }}
+            </el-button>
+          </template>
+          <el-button
+            type="info"
+            size="small"
             link
             @click="hasUpdate = false"
           >
@@ -32,6 +46,7 @@
 import { ref, onMounted } from 'vue'
 import { Bell } from '@element-plus/icons-vue'
 import { backendService } from '@/services/backendService'
+import { sseClient } from '@/services/sseClient'
 
 const hasUpdate = ref(false)
 const latestVersion = ref('')
@@ -39,19 +54,17 @@ const downloadUrl = ref('')
 const isDownloading = ref(false)
 const isDownloaded = ref(false)
 const savedFilePath = ref('')
+const downloadProgress = ref(0)
 
 const checkUpdate = async () => {
   try {
-    console.log('[UpdateAlert] Checking for updates...');
+    console.log('[UpdateAlert] Checking for updates...')
     const result = await backendService.checkUpdate()
-    console.log('[UpdateAlert] Check result:', result);
+    console.log('[UpdateAlert] Check result:', result)
     if (result.success && result.hasUpdate) {
       hasUpdate.value = true
       latestVersion.value = result.latestVersion
       downloadUrl.value = result.downloadUrl
-      console.log('[UpdateAlert] Update found:', latestVersion.value);
-    } else {
-      console.log('[UpdateAlert] No update found or check failed');
     }
   } catch (error) {
     console.error('[UpdateAlert] 업데이트 확인 실패:', error)
@@ -60,24 +73,28 @@ const checkUpdate = async () => {
 
 const handleUpdate = async () => {
   if (isDownloaded.value) {
-    // 이미 다운로드됨 -> 설치 프로그램 실행
     await backendService.runInstaller(savedFilePath.value)
     return
   }
-
   if (!downloadUrl.value) return
-  
+
+  isDownloading.value = true
+  downloadProgress.value = 0
+
+  // SSE 진행률 이벤트 수신
+  const unwatch = sseClient.on('DOWNLOAD_PROGRESS', (data) => {
+    if (data.progress !== undefined) {
+      downloadProgress.value = Math.min(data.progress, 100)
+    }
+  })
+
   try {
-    isDownloading.value = true
-    // 백엔드에 다운로드 요청
     const result = await backendService.downloadUpdate(downloadUrl.value)
     if (result.success && result.savePath) {
-      console.log('[UpdateAlert] Download success, path:', result.savePath);
+      downloadProgress.value = 100
       isDownloaded.value = true
       savedFilePath.value = result.savePath
-    }
- else {
-      // 실패 시 브라우저라도 열어줌
+    } else {
       backendService.openUrl(downloadUrl.value)
     }
   } catch (error) {
@@ -85,11 +102,11 @@ const handleUpdate = async () => {
     backendService.openUrl(downloadUrl.value)
   } finally {
     isDownloading.value = false
+    unwatch()
   }
 }
 
 onMounted(async () => {
-  // 시작 시 이미 다운로드된 업데이트가 있는지 확인 (창 닫았다 열어도 유지)
   if (window.pywebview?.api?.getPendingUpdate) {
     try {
       const pending = await backendService.getPendingUpdate()
@@ -101,7 +118,6 @@ onMounted(async () => {
       }
     } catch (e) { /* 무시 */ }
   }
-  // 3초 뒤 업데이트 확인 (초기 로딩 부하 방지)
   setTimeout(checkUpdate, 3000)
 })
 </script>
@@ -113,7 +129,7 @@ onMounted(async () => {
   left: 0;
   right: 0;
   z-index: 100;
-  background: #fdf6ec; /* Warning light background */
+  background: #fdf6ec;
   border-bottom: 1px solid #faecd8;
   padding: 8px 16px;
   display: flex;
@@ -127,7 +143,7 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   font-size: 13px;
-  color: #e6a23c; /* Warning color */
+  color: #e6a23c;
 }
 
 .version-text strong {
@@ -136,7 +152,20 @@ onMounted(async () => {
 
 .actions {
   display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+.progress-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #e6a23c;
+  min-width: 32px;
 }
 
 .update-btn {

@@ -52,6 +52,28 @@
         </div>
       </div>
       
+      <!-- 회의 수락/거절 버튼 (회의 요청인 경우) -->
+      <div v-if="item?.type === 'meeting'" class="action-section mt-4">
+        <div class="flex gap-3">
+          <el-button
+            type="success"
+            class="flex-1"
+            :disabled="item?.status === 'accepted'"
+            @click="$emit('accept', item)"
+          >
+            {{ item?.status === 'accepted' ? '✅ 수락됨' : '수락' }}
+          </el-button>
+          <el-button
+            type="danger"
+            class="flex-1"
+            :disabled="item?.status === 'rejected'"
+            @click="$emit('reject', item)"
+          >
+            {{ item?.status === 'rejected' ? '❌ 거절됨' : '거절' }}
+          </el-button>
+        </div>
+      </div>
+
       <!-- 답장 버튼 (쪽지인 경우만) -->
       <div v-if="item?.type === 'message' || item?.type === 'note'" class="reply-section mt-4">
         <el-button 
@@ -82,7 +104,7 @@ const props = defineProps({
   }
 })
 
-defineEmits(['update:visible', 'reply'])
+defineEmits(['update:visible', 'reply', 'accept', 'reject', 'markRead'])
 
 const getTypeLabel = (type) => {
   const labels = {
