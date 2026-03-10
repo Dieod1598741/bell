@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.59"
+CURRENT_VERSION = "v1.1.60"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -154,15 +154,31 @@ class API:
             print(f"[API] Tray SSE broadcast failed: {e}")
 
     def _send_notification(self, title, message):
-        """메인 프로세스를 통한 알림 출력 (SSE 브로드캐스트)"""
+        """알림 출력 - SSE로 main.py 트레이에 전달 + Windows 직접 fallback"""
         try:
-            self.sse_manager.broadcast({
+            # 올바른 broadcast 호출: ("SYSTEM", data_dict)
+            self.sse_manager.broadcast("SYSTEM", {
                 'action': 'notification',
                 'title': title,
                 'message': message
-            }, event='SYSTEM')
+            })
         except Exception as e:
             print(f"[API] Notification SSE broadcast failed: {e}")
+
+        # Windows에서 직접 plyer 알림 (SSE 경로 독립 fallback)
+        try:
+            import platform
+            if platform.system() == 'Windows':
+                from plyer import notification  # type: ignore
+                notification.notify(
+                    title=title,
+                    message=message,
+                    app_name='Bell',
+                    timeout=5
+                )
+        except Exception as e:
+            print(f"[API] Windows direct notification failed: {e}")
+
     
     # --- System 및 Update API ---
     
