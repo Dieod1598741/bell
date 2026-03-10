@@ -1,4 +1,5 @@
 import os
+import sys
 import psycopg2
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
@@ -6,22 +7,37 @@ from dotenv import load_dotenv
 import threading
 
 # .env 파일 로드 (PyInstaller frozen 대응)
-if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-    # PyInstaller 빌드 환경
-    base_path = sys._MEIPASS
-    env_path = os.path.join(base_path, 'backend', '.env')
+if getattr(sys, 'frozen', False):
+    # PyInstaller 빌드 환경 (_MEIPASS는 임시 압축 해제 경로)
+    base_path = getattr(sys, '_MEIPASS', os.getcwd())
+    # 여러 후보 경로 확인
+    env_candidates = [
+        os.path.join(base_path, 'backend', '.env'),
+        os.path.join(base_path, '.env'),
+        os.path.join(os.path.dirname(sys.executable), '.env'), # 실행파일 옆
+        os.path.join(os.getcwd(), '.env')
+    ]
 else:
     # 일반 파이썬 실행 환경
     base_path = os.path.dirname(os.path.abspath(__file__))
-    env_path = os.path.join(base_path, '.env')
+    env_candidates = [os.path.join(base_path, '.env')]
 
-if os.path.exists(env_path):
+env_path = None
+for candidate in env_candidates:
+    if os.path.exists(candidate):
+        env_path = candidate
+        break
+
+if env_path:
     print(f"[DB] Loading environment from: {env_path}")
     load_dotenv(env_path)
 else:
-    print(f"[DB] Warning: .env file not found at {env_path}")
-    # 폴백: 현재 작업 디렉토리에서도 시도
-    load_dotenv()
+    print(f"[DB] Warning: .env file not found in candidates")
+    load_dotenv() # 시스템 환경변수라도 시도
+    
+# 필수 환경변수 확인
+if not os.getenv("NEON_DB_HOST"):
+    print("[DB] CRITICAL: NEON_DB_HOST not found in environment!")
 
 class DBManager:
     """PostgreSQL (Supabase) 관리를 위한 싱글톤 클래스"""
