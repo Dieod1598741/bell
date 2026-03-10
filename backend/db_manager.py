@@ -6,6 +6,7 @@ from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 import threading
 import time
+from datetime import datetime
 
 # .env 파일 로드 (PyInstaller frozen 대응)
 if getattr(sys, 'frozen', False):
@@ -127,8 +128,17 @@ class DBManager:
                     cur.execute(query, params)
                     if fetch:
                         result = cur.fetchall()
+                        # RealDictRow를 일반 dict로 변환하고 datetime 등 직렬화 불가능한 타입 처리
+                        processed_result = []
+                        for row in result:
+                            processed_row = dict(row)
+                            for key, value in processed_row.items():
+                                if isinstance(value, datetime):
+                                    processed_row[key] = value.isoformat()
+                            processed_result.append(processed_row)
+                        
                         self.put_connection(conn)
-                        return result, None
+                        return processed_result, None
                     conn.commit()
                     self.put_connection(conn)
                     return True, None

@@ -272,7 +272,7 @@ const handleSignup = async () => {
   error.value = ''
 
   try {
-    // 비밀번호 해시화
+    // 비밀번호 해시화 (v1.1.11 최적화)
     const hashedPassword = await hashPassword(form.value.password)
     
     const result = await createUser({
