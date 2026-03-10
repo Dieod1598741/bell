@@ -43,55 +43,111 @@ class PystrayTrayManager(BaseTrayManager):
         print(f"[Pystray] 초기화 완료. 아이콘 경로: {self.icon_path}")
         
     def _create_image(self, status='offline', count=0):
-        """상태와 숫자가 반영된 동적 아이콘 생성"""
+        """상태와 숫자가 반영된 동적 아이콘 생성 (macOS/Windows 크로스플랫폼)"""
+        import platform
+        is_windows = platform.system() == 'Windows'
+        
+        # 플랫폼별 아이콘 크기
+        # macOS: 44px (레티나 @2x 대응 - pystray가 22px로 축소해서 메뉴바에 표시)
+        # Windows: 32px (알림 영역 표준)
+        SIZE = 32 if is_windows else 44
+
         try:
-            if os.path.exists(self.icon_path):
-                img = Image.open(self.icon_path).convert('RGBA')
+            # ─────────────────────────────────────────────────
+            # 1. 캔버스 생성 (불투명 배경)
+            # ─────────────────────────────────────────────────
+            # Windows: 흰색 불투명(RGB) 캔버스
+            # macOS:   투명(RGBA) 캔버스 위에 알파 합성 → OS가 메뉴바 배경 처리
+            canvas = Image.new('RGBA', (SIZE, SIZE), (255, 255, 255, 255) if is_windows else (0, 0, 0, 0))
+
+            # ─────────────────────────────────────────────────
+            # 2. 아이콘 PNG 로드 및 합성
+            # ─────────────────────────────────────────────────
+            if self.icon_path and os.path.exists(self.icon_path):
+                icon_img = Image.open(self.icon_path).convert('RGBA')
+                icon_img = icon_img.resize((SIZE, SIZE), Image.Resampling.LANCZOS)
+                # paste의 세 번째 인자(mask=icon_img)가 핵심:
+                # PNG의 알파 채널을 마스크로 활용 → 투명부분은 캔버스(배경)가 그대로, 불투명부분만 아이콘으로 채워짐
+                canvas.paste(icon_img, (0, 0), icon_img)
             else:
-                # 아이콘 파일이 없을 경우 빈 이미지 생성
-                img = Image.new('RGBA', (64, 64), color=(255, 255, 255, 0))
-            
-            # 크기 조정 (트레이용 64x64 또는 32x32)
-            img = img.resize((64, 64), Image.Resampling.LANCZOS)
-            draw = ImageDraw.Draw(img)
-            
-            # 1. 상태 표시 (우측 하단 작은 원)
+                # 아이콘 파일 없으면 파란 둥근 사각형으로 대체
+                draw_tmp = ImageDraw.Draw(canvas)
+                m = SIZE // 6
+                draw_tmp.rounded_rectangle([m, m, SIZE - m, SIZE - m], radius=SIZE // 5, fill=(59, 130, 246, 255))
+                print(f"[Pystray] ⚠️ 아이콘 파일 없음, 기본 도형으로 대체. path={self.icon_path}")
+
+            draw = ImageDraw.Draw(canvas)
+
+            # ─────────────────────────────────────────────────
+            # 3. 상태 표시 원 (우측 하단)
+            # ─────────────────────────────────────────────────
             status_colors = {
-                'online': (0, 255, 0),    # Green
-                'away': (255, 255, 0),     # Yellow
-                'busy': (255, 0, 0),       # Red
-                'offline': (128, 128, 128) # Gray
+                'online':  (52, 199,  89, 255),   # 초록
+                'away':    (255, 204,   0, 255),   # 노랑
+                'busy':    (255,  59,  48, 255),   # 빨강
+                'offline': (142, 142, 147, 255),   # 회색
             }
-            color = status_colors.get(status, (128, 128, 128))
-            draw.ellipse((45, 45, 60, 60), fill=color, outline=(255, 255, 255))
-            
-            # 2. 알림 숫자 표시 (좌측 상단 빨간 원)
+            dot_color = status_colors.get(status, (142, 142, 147, 255))
+            dot_r = max(6, SIZE // 5)              # 원 반지름
+            pad = 1                                # 가장자리 여백
+            dot_x0 = SIZE - dot_r - pad
+            dot_y0 = SIZE - dot_r - pad
+
+            # 흰색 테두리로 아이콘과 분리
+            draw.ellipse(
+                (dot_x0 - 1, dot_y0 - 1, dot_x0 + dot_r + 1, dot_y0 + dot_r + 1),
+                fill=(255, 255, 255, 255)
+            )
+            draw.ellipse(
+                (dot_x0, dot_y0, dot_x0 + dot_r, dot_y0 + dot_r),
+                fill=dot_color
+            )
+
+            # ─────────────────────────────────────────────────
+            # 4. 배지 (좌측 상단, 알림 개수)
+            # ─────────────────────────────────────────────────
             if count > 0:
-                draw.ellipse((5, 5, 30, 30), fill=(255, 0, 0))
-                # 폰트 설정 (시스템 폰트 시도)
+                badge_r = max(9, SIZE // 3)
+                draw.ellipse((0, 0, badge_r, badge_r), fill=(255, 59, 48, 255))
                 try:
-                    # macOS/Windows 기본 폰트 경로들
-                    font_paths = ["/System/Library/Fonts/Helvetica.ttc", "C:\\Windows\\Fonts\\arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
+                    font_paths = [
+                        "/System/Library/Fonts/Helvetica.ttc",
+                        "C:\\Windows\\Fonts\\arial.ttf",
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                    ]
                     font = None
-                    for f_path in font_paths:
-                        if os.path.exists(f_path):
-                            font = ImageFont.truetype(f_path, 18)
+                    for fp in font_paths:
+                        if os.path.exists(fp):
+                            font = ImageFont.truetype(fp, max(7, badge_r - 4))
                             break
                     if not font:
                         font = ImageFont.load_default()
-                except:
+                except Exception:
                     font = ImageFont.load_default()
-                
-                text = str(count) if count < 100 else "99+"
-                # 텍스트 중앙 맞춤
+
+                text = str(count) if count < 10 else "9+"
                 bbox = draw.textbbox((0, 0), text, font=font)
-                w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-                draw.text(((35-w)/2, (35-h)/2 - 2), text, font=font, fill=(255, 255, 255))
-                
-            return img
+                tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+                draw.text(
+                    ((badge_r - tw) / 2, (badge_r - th) / 2 - 1),
+                    text, font=font, fill=(255, 255, 255, 255)
+                )
+
+            # ─────────────────────────────────────────────────
+            # 5. Windows 최종 처리: RGBA → RGB (pystray 호환)
+            # ─────────────────────────────────────────────────
+            if is_windows:
+                bg = Image.new('RGB', (SIZE, SIZE), (255, 255, 255))
+                bg.paste(canvas, mask=canvas.split()[3])
+                return bg
+
+            return canvas
+
         except Exception as e:
             print(f"[Pystray] 아이콘 생성 실패: {e}")
-            return Image.new('RGB', (64, 64), color=(255, 255, 255))
+            import traceback; traceback.print_exc()
+            return Image.new('RGB', (32, 32), color=(59, 130, 246))
+
 
     def setup(self, current_status='offline'):
         """트레이 설정 및 초기화"""
