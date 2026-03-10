@@ -463,7 +463,7 @@ class API:
     def getAllUsers(self):
         """전체 사용자 목록 (관리자용 또는 목록용)"""
         try:
-            query = 'SELECT "id", "name", "nick_nm", "avatar", "user_status", "connection_status", "permission" FROM "users" WHERE "del_yn" = \'n\' ORDER BY "nick_nm" ASC'
+            query = 'SELECT "id", "name", "nick_nm", "avatar", "user_status", "connection_status", "permission", "del_yn" FROM "users" WHERE "del_yn" = \'n\' ORDER BY "nick_nm" ASC'
             result, error = self.db_manager.execute_query(query)
             return {"success": True, "data": result or []}
         except Exception as e:
