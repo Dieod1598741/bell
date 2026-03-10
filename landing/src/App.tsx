@@ -5,10 +5,17 @@ function App() {
     const [latestVersion, setLatestVersion] = useState<string>('...')
 
     useEffect(() => {
-        fetch('https://api.github.com/repos/Dieod1598741/bell/releases/latest')
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 5000)
+
+        fetch('https://api.github.com/repos/Dieod1598741/bell/releases/latest', {
+            signal: controller.signal,
+            headers: { 'Accept': 'application/vnd.github+json' }
+        })
             .then(r => r.json())
-            .then(data => setLatestVersion(data.tag_name || 'unknown'))
-            .catch(() => setLatestVersion('unknown'))
+            .then(data => setLatestVersion(data.tag_name || data.name || '알 수 없음'))
+            .catch(() => setLatestVersion('최신'))
+            .finally(() => clearTimeout(timeout))
     }, [])
 
     const downloadLinks = {
