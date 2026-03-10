@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.40"
+CURRENT_VERSION = "v1.1.41"
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -810,6 +810,7 @@ if [ -d "{mount_pt}/Bell.app" ]; then
     rm -rf "{dst_app}"
     cp -R "{mount_pt}/Bell.app" "{dst_app}"
     hdiutil detach "{mount_pt}" -quiet 2>/dev/null
+    rm -f "{file_path}"
     open "{dst_app}"
 fi
 rm -f "$0"
@@ -848,6 +849,7 @@ timeout /t 2 /nobreak >nul
 taskkill /IM Bell.exe /F >nul 2>&1
 timeout /t 1 /nobreak >nul
 copy /Y "{file_path}" "{current_exe}"
+del /F /Q "{file_path}"
 start "" "{current_exe}"
 del "%~f0"
 """
