@@ -89,6 +89,7 @@ const replyTargetId = ref(null)
 const allInbox = ref([])
 const isLoading = ref(true)
 let unwatchInbox = null
+let inboxHandler = null  // 로컬 변수로 변경 (window 글로벌 오염 방지)
 
 const filters = [
   { value: 'all', label: '전체' },
@@ -138,8 +139,8 @@ onMounted(async () => {
         read: false
       })
     }
-    window.addEventListener('bell-new-inbox', handleNewInbox)
-    window._inboxHandler = handleNewInbox
+    inboxHandler = handleNewInbox
+    window.addEventListener('bell-new-inbox', inboxHandler)
   }
 })
 
@@ -147,9 +148,9 @@ onUnmounted(() => {
   if (unwatchInbox) {
     unwatchInbox()
   }
-  if (window._inboxHandler) {
-    window.removeEventListener('bell-new-inbox', window._inboxHandler)
-    delete window._inboxHandler
+  if (inboxHandler) {
+    window.removeEventListener('bell-new-inbox', inboxHandler)
+    inboxHandler = null
   }
 })
 

@@ -69,6 +69,7 @@ const listContainer = ref(null)
 const allUsers = ref([])
 const isLoading = ref(true)
 let unwatchUsers = null
+let userStatusHandler = null  // 로컬 변수 (window 전역 오염 방지)
 
 // MainView에서 prop으로 받은 searchQuery를 내부 ref에 동기화
 watch(() => props.searchQuery, (val) => {
@@ -96,7 +97,7 @@ onMounted(() => {
   }, currentUserId)
 
   // SSE: 사용자 상태 실시간 업데이트
-  const handleUserStatus = (e) => {
+  userStatusHandler = (e) => {
     const { user_id, user_status, connection_status } = e.detail || {}
     if (!user_id) return
     const idx = allUsers.value.findIndex(u => u.id === user_id)
@@ -110,10 +111,7 @@ onMounted(() => {
       }
     }
   }
-  window.addEventListener('bell-user-status', handleUserStatus)
-
-  // cleanup을 위해 ref에 저장
-  window._userStatusHandler = handleUserStatus
+  window.addEventListener('bell-user-status', userStatusHandler)
 
   if (props.selectedUserId) {
     scrollToSelectedUser()
@@ -121,12 +119,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (unwatchUsers) {
-    unwatchUsers()
-  }
-  if (window._userStatusHandler) {
-    window.removeEventListener('bell-user-status', window._userStatusHandler)
-    delete window._userStatusHandler
+  if (unwatchUsers) unwatchUsers()
+  if (userStatusHandler) {
+    window.removeEventListener('bell-user-status', userStatusHandler)
+    userStatusHandler = null
   }
 })
 

@@ -71,11 +71,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, TopRight } from '@element-plus/icons-vue'
-import { loadMessagesPaged, sendChatMessage, watchMessages, markChatMessageRead } from '@/services/chatService'
+import { loadMessagesPaged, sendChatMessage, markChatMessageRead } from '@/services/chatService'
 import { watchUsers } from '@/services/userService'
+import { sseClient } from '@/services/sseClient'
 import { useUserStore } from '@/stores/userStore'
 import MessageBubble from '@/components/chat/MessageBubble.vue'
 import { getDisplayName } from '@/utils/userDisplay'
@@ -92,7 +93,7 @@ const isTyping = ref(false)
 const loading = ref(false)
 const lastDoc = ref(null)
 const hasMore = ref(true)
-let unwatchMessages = null
+let unwatchMessages = null   // SSE 구독 해제 함수
 
 // 사용자 이름 가져오기
 const loadUserName = async () => {
@@ -100,54 +101,47 @@ const loadUserName = async () => {
     const currentUserId = userStore.user?.id
     watchUsers((users) => {
       const user = users.find(u => u.id === userId)
-      if (user) {
-        userName.value = getDisplayName(user)
-      }
+      if (user) userName.value = getDisplayName(user)
     }, currentUserId)
   } catch (error) {
     console.error('사용자 정보 로드 실패:', error)
   }
 }
 
-// 메시지 로드 (무한 스크롤용)
+// 초기 메시지 로드 (무한 스크롤용 — SSE 도착 전 히스토리)
 const loadMessages = async (loadMore = false) => {
   if (loading.value || (!loadMore && messages.value.length > 0)) return
-  
+
   loading.value = true
   try {
     const currentUserId = userStore.user?.id
     if (!currentUserId) return
-    
+
     const result = await loadMessagesPaged(userId, currentUserId, 20, loadMore ? lastDoc.value : null)
-    
+
     if (result.messages && result.messages.length > 0) {
-      // Firestore 데이터를 MessageBubble 형식으로 변환
-      const convertedMessages = result.messages.map(msg => ({
+      const converted = result.messages.map(msg => ({
         id: msg.id,
-        text: msg.content || '', // content를 text로 변환
+        text: msg.content || '',
         isSent: msg.sender_user_id === currentUserId,
         time: msg.timestamp?.toDate?.()?.toISOString() || msg.timestamp,
         type: msg.type || 'message',
         read: msg.read || false
       }))
-      
+
       if (loadMore) {
-        // 이전 메시지 로드 (위에 추가)
-        const currentScrollTop = messagesContainer.value.scrollTop
-        const currentScrollHeight = messagesContainer.value.scrollHeight
-        messages.value = [...convertedMessages, ...messages.value]
-        
-        // 스크롤 위치 유지
+        const prevScrollTop = messagesContainer.value.scrollTop
+        const prevScrollHeight = messagesContainer.value.scrollHeight
+        messages.value = [...converted, ...messages.value]
         nextTick(() => {
           const newScrollHeight = messagesContainer.value.scrollHeight
-          messagesContainer.value.scrollTop = newScrollHeight - currentScrollHeight + currentScrollTop
+          messagesContainer.value.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop
         })
       } else {
-        // 초기 로드
-        messages.value = convertedMessages
+        messages.value = converted
         scrollToBottom()
       }
-      
+
       lastDoc.value = result.lastDoc
       hasMore.value = result.hasMore
     } else {
@@ -160,44 +154,38 @@ const loadMessages = async (loadMore = false) => {
   }
 }
 
-// 스크롤 이벤트 핸들러 (위로 스크롤 시 이전 메시지 로드)
+// 위로 스크롤 시 이전 메시지 로드
 const handleScroll = () => {
   if (!messagesContainer.value || loading.value || !hasMore.value) return
-  
-  const scrollTop = messagesContainer.value.scrollTop
-  // 위에서 200px 이내에 도달하면 이전 메시지 로드
-  if (scrollTop < 200) {
-    loadMessages(true)
-  }
+  if (messagesContainer.value.scrollTop < 200) loadMessages(true)
 }
 
 const sendMessage = async () => {
   if (!inputMessage.value.trim()) return
-  
+
   const content = inputMessage.value.trim()
   const currentUserId = userStore.user?.id
   if (!currentUserId) return
 
-  // 낙관적 업데이트: 전송 전 로컬에 즉시 추가
-  const tempMsg = {
-    id: `temp-${Date.now()}`,
+  // 낙관적 업데이트: 전송 즉시 화면에 표시
+  const tempId = `temp-${Date.now()}`
+  messages.value.push({
+    id: tempId,
     text: content,
     isSent: true,
     time: new Date().toISOString(),
     type: 'message',
     read: false
-  }
-  messages.value = [...messages.value, tempMsg]
+  })
   inputMessage.value = ''
   scrollToBottom()
 
   try {
     await sendChatMessage(currentUserId, userId, content)
-    // SSE를 통해 실제 메시지가 watchMessages 리스너로 도착하면 tempMsg를 대체함
+    // SSE NEW_CHAT 이벤트로 실제 메시지가 도착하면 tempId 메시지는 자동 제거됨
   } catch (error) {
     console.error('메시지 전송 실패:', error)
-    // 실패 시 낙관적 업데이트 롤백
-    messages.value = messages.value.filter(m => m.id !== tempMsg.id)
+    messages.value = messages.value.filter(m => m.id !== tempId)
     inputMessage.value = content
   }
 }
@@ -212,54 +200,54 @@ const scrollToBottom = () => {
 
 const shouldShowDate = (message, index) => {
   if (index === 0) return true
-  const prevMessage = messages.value[index - 1]
-  if (!prevMessage || !prevMessage.time || !message.time) return false
-  
-  const prevDate = new Date(prevMessage.time)
-  const currentDate = new Date(message.time)
-  const diff = currentDate.getTime() - prevDate.getTime()
-  
-  // 5분 이상 차이나면 날짜 표시
-  return diff > 5 * 60 * 1000
+  const prev = messages.value[index - 1]
+  if (!prev?.time || !message.time) return false
+  return new Date(message.time).getTime() - new Date(prev.time).getTime() > 5 * 60 * 1000
 }
 
-const handleBack = () => {
-  router.push('/main')
-}
-
-const handleKeyDown = (event) => {
-  if (event.key === 'Escape') {
-    handleBack()
-  }
-}
+const handleKeyDown = (e) => { if (e.key === 'Escape') router.push('/main') }
 
 onMounted(() => {
   loadUserName()
   loadMessages(false)
-  
-  // 실시간 메시지 감시
+
   const currentUserId = userStore.user?.id
-  if (currentUserId) {
-    unwatchMessages = watchMessages(userId, currentUserId, (newMessages) => {
-      // 읽지 않은 메시지 읽음 처리
-      newMessages.forEach(msg => {
-        if (!msg.read && msg.target_user_id === currentUserId && msg.sender_user_id === userId) {
-          markChatMessageRead(msg.id)
-        }
-      })
-      // Firestore 데이터를 MessageBubble 형식으로 변환
-      messages.value = newMessages.map(msg => ({
-        id: msg.id,
-        text: msg.content || '', // content를 text로 변환
-        isSent: msg.sender_user_id === currentUserId,
-        time: msg.timestamp?.toDate?.()?.toISOString() || msg.timestamp,
-        type: msg.type || 'message',
-        read: msg.read || false
-      }))
-      scrollToBottom()
+  if (!currentUserId) return
+
+  // ─── 핵심 수정: SSE 직접 구독 → 전체 재로드 없이 새 메시지 즉시 append ───
+  unwatchMessages = sseClient.on('NEW_CHAT', (msg) => {
+    // 현재 열린 대화와 관련된 메시지인지 확인
+    const isThisChat =
+      (msg.sender_user_id === userId && msg.target_user_id === currentUserId) ||
+      (msg.sender_user_id === currentUserId && msg.target_user_id === userId)
+    if (!isThisChat) return
+
+    // 내가 보낸 메시지이면 낙관적 temp 메시지 제거 (temp-xxx로 시작하는 것만)
+    if (msg.sender_user_id === currentUserId) {
+      messages.value = messages.value.filter(m => !m.id?.startsWith('temp-'))
+    }
+
+    // 이미 있는 메시지 중복 방지 (초기 로드된 것과 겹치는 경우)
+    if (messages.value.some(m => m.id === msg.id)) return
+
+    // 새 메시지를 직접 추가 (전체 재로드 없음 → 화면 즉시 반영)
+    messages.value.push({
+      id: msg.id,
+      text: msg.content || '',
+      isSent: msg.sender_user_id === currentUserId,
+      time: msg.created_at || msg.timestamp || new Date().toISOString(),
+      type: msg.type || 'message',
+      read: false
     })
-  }
-  
+    scrollToBottom()
+
+    // 내가 받은 메시지면 즉시 읽음 처리
+    if (msg.target_user_id === currentUserId) {
+      markChatMessageRead(msg.id)
+    }
+  })
+  // ────────────────────────────────────────────────────────────────────────
+
   document.addEventListener('keydown', handleKeyDown)
   if (messagesContainer.value) {
     messagesContainer.value.addEventListener('scroll', handleScroll)
@@ -276,13 +264,7 @@ onUnmounted(() => {
   }
 })
 
-watch(messages, () => {
-  // 새 메시지가 추가되면 맨 아래로 스크롤 (자신이 보낸 메시지인 경우)
-  const lastMessage = messages.value[messages.value.length - 1]
-  if (lastMessage && lastMessage.sender_user_id === userStore.user?.id) {
-    scrollToBottom()
-  }
-}, { deep: true })
+
 </script>
 
 <style scoped>

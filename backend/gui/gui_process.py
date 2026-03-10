@@ -480,16 +480,27 @@ class API:
             return {"success": False, "error": str(e)}
 
     def markMessageRead(self, message_id, msg_type='chat'):
-        """메시지 읽음 처리 (read_at 타임스탬프 저장)"""
+        """메시지 읽음 처리 후 트레이 카운트 즉시 갱신"""
         try:
             table = 'chats' if msg_type == 'chat' else 'inbox'
-            # read_at 컬럼이 있으면 타임스탬프, 없으면 read = TRUE fallback
             try:
                 query = f"UPDATE {table} SET read_at = NOW() WHERE id = %s"
                 self.db_manager.execute_query(query, (message_id,), fetch=False)
             except Exception:
                 query = f"UPDATE {table} SET read = TRUE WHERE id = %s"
                 self.db_manager.execute_query(query, (message_id,), fetch=False)
+
+            # ─── 핵심 수정: 읽음 처리 후 트레이 즉시 갱신 ───────────────
+            try:
+                user_data = self.user_manager.get_user()
+                if user_data and user_data.get('id'):
+                    new_count = self.db_manager.get_unread_count(user_data.get('id'))
+                    self._send_tray_update(count=new_count)
+                    print(f"[API] 읽음 처리 후 트레이 갱신: unread={new_count}")
+            except Exception as e:
+                print(f"[API] 트레이 즉시 갱신 실패: {e}")
+            # ────────────────────────────────────────────────────────────
+
             return {"success": True}
         except Exception as e:
             print(f"[API] markMessageRead 오류: {e}")
@@ -654,10 +665,9 @@ class API:
         self._update_backend_request_time()
         import platform
         system = platform.system()
-        
-        # ── 아이콘 경로 결정 ───────────────────────────────────
+
+        # ── 아이콘 경로 결정 ──────────────────────────────────────────────
         def find_icon(ext):
-            """플랫폼 별 아이콘 파일 탐색"""
             candidates = [f'bell_icon{ext}', f'icon{ext}']
             for name in candidates:
                 if getattr(sys, 'frozen', False):
@@ -671,39 +681,105 @@ class API:
                     if os.path.exists(p):
                         return p
             return None
-        
+
         icon_path = find_icon('.ico') if system == 'Windows' else find_icon('.png')
-        print(f"[API] 알림 전송: {title} – {message} (icon={icon_path})")
-        
-        # ── macOS: osascript 직접 사용 (plyer보다 안정적) ─────
+        print(f"[API] 알림 전송: {title} – {message} (platform={system}, icon={icon_path})")
+
+        # ── macOS: osascript (가장 안정적) ────────────────────────────────
         if system == 'Darwin':
             try:
                 import subprocess
-                # 특수문자 이스케이프
                 safe_title   = title.replace('"', '\\"')
                 safe_message = message.replace('"', '\\"')
                 script = f'display notification "{safe_message}" with title "{safe_title}"'
                 subprocess.run(['osascript', '-e', script], check=False, timeout=5)
                 return {"success": True}
             except Exception as e:
-                print(f"[API] osascript 알림 실패: {e}, plyer로 재시도")
-        
-        # ── Windows / 폴백: plyer ─────────────────────────────
+                print(f"[API] osascript 알림 실패: {e}")
+                # macOS fallback: plyer
+                try:
+                    from plyer import notification
+                    notification.notify(title=title, message=message, app_name='Bell', timeout=5)
+                    return {"success": True}
+                except Exception as e2:
+                    print(f"[API] macOS plyer 실패: {e2}")
+            return {"success": False, "error": "macOS 알림 실패"}
+
+        # ── Windows: 다단계 fallback ──────────────────────────────────────
+        if system == 'Windows':
+            # 방법 1: winotify — Windows 10/11 네이티브 토스트 (가장 안정적)
+            try:
+                from winotify import Notification, audio
+                toast = Notification(
+                    app_id="Bell",
+                    title=title,
+                    msg=message,
+                    duration="short",
+                    icon=icon_path or ""
+                )
+                toast.set_audio(audio.Default, loop=False)
+                toast.show()
+                print("[API] winotify 알림 전송 성공")
+                return {"success": True}
+            except ImportError:
+                print("[API] winotify 미설치, 다음 방법 시도")
+            except Exception as e:
+                print(f"[API] winotify 실패: {e}")
+
+            # 방법 2: win10toast fallback
+            try:
+                from win10toast import ToastNotifier
+                toaster = ToastNotifier()
+                toaster.show_toast(
+                    title, message,
+                    icon_path=icon_path,
+                    duration=5,
+                    threaded=True
+                )
+                print("[API] win10toast 알림 전송 성공")
+                return {"success": True}
+            except ImportError:
+                print("[API] win10toast 미설치, 다음 방법 시도")
+            except Exception as e:
+                print(f"[API] win10toast 실패: {e}")
+
+            # 방법 3: plyer fallback (기존)
+            try:
+                from plyer import notification
+                notification.notify(
+                    title=title,
+                    message=message,
+                    app_name='Bell',
+                    app_icon=icon_path,
+                    timeout=10,
+                )
+                print("[API] plyer 알림 전송 성공")
+                return {"success": True}
+            except Exception as e:
+                print(f"[API] plyer 실패: {e}")
+
+            # 방법 4: Windows Shell COM 토스트 (Python 내장 ctypes 활용)
+            try:
+                import ctypes
+                # MB_ICONINFORMATION | MB_OK — 비동기 팝업 대신 트레이 버블로 표시
+                # (winRT 없이도 동작하는 최후 수단)
+                ctypes.windll.user32.MessageBoxW(0, message, title, 0x40 | 0x1000)
+                print("[API] WinAPI MessageBox 알림 전송")
+                return {"success": True}
+            except Exception as e:
+                print(f"[API] WinAPI 실패: {e}")
+
+            return {"success": False, "error": "Windows 알림 전송 전체 실패"}
+
+        # ── 기타 OS ──────────────────────────────────────────────────────
         try:
             from plyer import notification
-            notification.notify(
-                title=title,
-                message=message,
-                app_name='Bell',
-                app_icon=icon_path,   # None 안전 (plyer가 기본값 사용)
-                timeout=10,
-            )
+            notification.notify(title=title, message=message, app_name='Bell', timeout=5)
             return {"success": True}
         except Exception as e:
-            print(f"[API] 알림 표시 오류: {e}")
-            import traceback; traceback.print_exc()
-            return {"success": False, "error": str(e)}
-    
+            print(f"[API] 기타 OS 알림 실패: {e}")
+        return {"success": False, "error": "알림 전송 실패"}
+
     # ─── 자동 업데이트 ────────────────────────────────────────────
     
     def checkUpdate(self):
@@ -1275,6 +1351,22 @@ def run_gui():
         resizable=True,
         js_api=api
     )
+
+    # ─── 창 닫기 이벤트: 로그아웃 방지 ──────────────────────────────────
+    # X버튼으로 창을 닫아도 user_info.json을 삭제하거나 상태를 offline으로 바꾸지 않음
+    # 트레이가 계속 살아있으므로 세션과 로그인 상태를 유지해야 함
+    def on_window_closed():
+        print("[GUI] 창이 닫혔습니다. 트레이는 유지됩니다 (로그아웃 안 함).")
+        # user_info.json, user_status.txt를 건드리지 않음 → 다음 창 열기 시 자동 복원됨
+        # 단, 활동 모니터는 정지 (창이 없으므로 불필요)
+        try:
+            if api.activity_monitor:
+                api.activity_monitor.stop()
+        except Exception:
+            pass
+
+    window.events.closed += on_window_closed
+    # ─────────────────────────────────────────────────────────────────────
 
     # SSEManager에 window 직접 등록 (evaluate_js로 실시간 이벤트 push용)
     api.sse_manager.register_window(window)

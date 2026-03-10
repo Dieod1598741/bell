@@ -1,27 +1,15 @@
 import { backendService } from './backendService'
 import { sseClient } from './sseClient'
 
+// ChatView에서 초기 메시지 로드 전용 (실시간 수신은 ChatView에서 sseClient 직접 구독)
 export function watchMessages(userId, currentUserId, callback) {
-  // 1. 초기 메시지 로드
   const loadMessages = async () => {
     const result = await backendService.getMessages(userId, currentUserId)
-    if (result.success) {
-      callback(result.data)
-    }
+    if (result.success) callback(result.data)
   }
-
   loadMessages()
-
-  // 2. SSE 감시 (새 메시지 도착 시 로드)
-  const unsubscribe = sseClient.on('NEW_CHAT', (msg) => {
-    const isRelated = (msg.sender_user_id === userId && msg.target_user_id === currentUserId) ||
-      (msg.sender_user_id === currentUserId && msg.target_user_id === userId)
-    if (isRelated) {
-      loadMessages()
-    }
-  })
-
-  return unsubscribe
+  // 반환값: 빈 cleanup 함수 (ChatView가 onUnmounted에서 호출)
+  return () => {}
 }
 
 export function watchChats(currentUserId, callback) {

@@ -52,16 +52,16 @@ const checkAutoLogin = async () => {
     return
   }
 
-  // API 준비 대기 (최대 1초)
+  // API 준비 대기 (최대 4초 — 창 재오픈 시 pywebview 브리지 준비 시간 확보)
   let retryCount = 0
-  const maxRetries = 20
+  const maxRetries = 40  // 20 → 40 (창 재오픈 시 브리지 준비 시간 더 필요)
   while (!window.pywebview?.api?.getUserInfo && retryCount < maxRetries) {
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise(resolve => setTimeout(resolve, 100))  // 50ms → 100ms
     retryCount++
   }
 
   if (!window.pywebview?.api?.getUserInfo) {
-    console.log('[App] API 준비 안 됨, 자동 로그인 건너뜀')
+    console.log('[App] API 준비 안 됨 (4초 대기 초과), 자동 로그인 건너뜀')
     return
   }
 
@@ -97,11 +97,13 @@ const checkAutoLogin = async () => {
 }
 
 // 로그인 상태 및 사용자 ID 변경 감지
+let sseUnsubscribers = []  // SSE 구독 해제 함수 목록
 let currentMonitoringUserId = null
 watch(
   () => userStore.isLoggedIn && userStore.user?.id,
-  async (userId) => {
-    if (userId) {
+  async (loggedInUserId) => {
+    if (loggedInUserId) {
+      const userId = loggedInUserId  // string (truthy 확인 후)
       // 사용자 ID가 변경되었으면 이전 모니터링 중지
       if (currentMonitoringUserId && currentMonitoringUserId !== userId) {
         stopActivityMonitoring()
@@ -195,7 +197,7 @@ const stopActivityMonitoring = () => {
 // SSE 알림 팝업 등록
 const setupNotificationListeners = () => {
   // 새 채팅 메시지 알림 (나에게 온 것만)
-  sseClient.on('NEW_CHAT', (msg) => {
+  const unsubNewChat = sseClient.on('NEW_CHAT', (msg) => {
     const currentUserId = userStore.user?.id
     if (!currentUserId) return
     if (msg.sender_user_id === currentUserId) return  // 내가 보낸 건 제외
@@ -213,7 +215,7 @@ const setupNotificationListeners = () => {
   })
 
   // 새 쪽지 / 회의요청 알림 (나에게 온 것만)
-  sseClient.on('NEW_ANNOUNCEMENT', (data) => {
+  const unsubAnnouncement = sseClient.on('NEW_ANNOUNCEMENT', (data) => {
     const currentUserId = userStore.user?.id
     if (!currentUserId) return
     if (data.sender_user_id === currentUserId) return  // 내가 보낸 건 제외
@@ -235,13 +237,13 @@ const setupNotificationListeners = () => {
   })
 
   // 사용자 상태 변경 실시간 반영 (전체 대상)
-  sseClient.on('USER_STATUS_CHANGED', (data) => {
+  const unsubUserStatus = sseClient.on('USER_STATUS_CHANGED', (data) => {
     // UserListView가 수신해서 뱃지 즉시 업데이트
     window.dispatchEvent(new CustomEvent('bell-user-status', { detail: data }))
   })
 
   // 회의 수락/거절 결과 알림 (내가 보낸 회의에 대한 응답)
-  sseClient.on('INBOX_STATUS_CHANGED', (data) => {
+  const unsubInboxStatus = sseClient.on('INBOX_STATUS_CHANGED', (data) => {
     const currentUserId = userStore.user?.id
     if (!currentUserId) return
     // target_user_id가 나인 경우 (내가 보낸 회의에 상대가 응답)
@@ -256,11 +258,17 @@ const setupNotificationListeners = () => {
       position: 'bottom-right'
     })
   })
+
+  // 구독 해제 함수 저장 (onUnmounted에서 정리)
+  sseUnsubscribers = [unsubNewChat, unsubAnnouncement, unsubUserStatus, unsubInboxStatus]
 }
 
 // 컴포넌트 언마운트 시 정리
 onUnmounted(() => {
   stopActivityMonitoring()
+  // SSE 리스너 구독 해제
+  sseUnsubscribers.forEach(unsub => unsub())
+  sseUnsubscribers = []
   sseClient.disconnect()
 })
 </script>

@@ -71,9 +71,11 @@ class BellApp:
         
         # SSE 리스너 상태
         self.sse_thread = None
+        self._sse_port = None
         
     def _start_sse_listener(self, port):
-        """GUI 프로세스의 SSE 채널을 구독하여 트레이/알림 명령 수신"""
+        """GUI 프로세스의 SSE 채널을 구독하여 트레이/알림 명령 수신.
+        이미 SSE 스레드가 살아있으면 포트만 업데이트하고 새 스레드를 시작하지 않음."""
         import urllib.request
         import json
         import threading
@@ -82,12 +84,18 @@ class BellApp:
         # 포트를 공유 참조로 관리 (GUI 재시작 시 업데이트 가능)
         self._sse_port = port
 
+        # 이미 살아있는 스레드가 있으면 포트만 교체하고 재시작하지 않음
+        if self.sse_thread and self.sse_thread.is_alive():
+            print(f"[SSE-IPC] 포트를 {port}로 업데이트 (기존 스레드 재사용)")
+            return
+
         def listen():
-            print(f"[SSE-IPC] Connecting to http://localhost:{self._sse_port}/events...")
             consecutive_fails = 0
 
             while True:  # 무한 재시도 (앱 종료 시 daemon thread라 자동 종료)
-                url = f"http://localhost:{self._sse_port}/events"
+                current_port = self._sse_port
+                url = f"http://localhost:{current_port}/events"
+                print(f"[SSE-IPC] Connecting to {url}...")
                 try:
                     req = urllib.request.Request(url)
                     with urllib.request.urlopen(req) as response:
@@ -128,13 +136,13 @@ class BellApp:
                     print(f"[SSE-IPC] Connection lost: {e} (재시도 {consecutive_fails}번째, {wait}초 후)")
                     time.sleep(wait)
 
-        self.sse_thread = threading.Thread(target=listen, daemon=True)
+        self.sse_thread = threading.Thread(target=listen, daemon=True, name='sse-ipc-listener')
         self.sse_thread.start()
+        print(f"[SSE-IPC] 새 SSE 리스너 스레드 시작 (port={port})")
 
     def _update_sse_port(self, new_port):
-        """GUI 재시작 시 SSE 포트 업데이트"""
-        self._sse_port = new_port
-        print(f"[SSE-IPC] Port updated to {new_port}")
+        """GUI 재시작 시 SSE 포트 업데이트 (스레드 재사용)"""
+        self._start_sse_listener(new_port)
     
     def show_window(self):
         """GUI 창 열기"""
