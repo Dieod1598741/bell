@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.39"
+CURRENT_VERSION = "v1.1.40"
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -785,64 +785,88 @@ class API:
             return {"success": False, "error": str(e)}
     
     def runInstaller(self, file_path):
-        """설치 프로그램 실행 후 앱 종료 (macOS/Windows 분기)"""
+        """설치 프로그램 실행 후 앱 종료 → 자동 재시작 (macOS/Windows)"""
         try:
             import platform
             import subprocess
-            
+            import signal
+            import tempfile
+            import threading
+
             system = platform.system()
-            print(f"[API] 설치 시작: {file_path} (OS: {system})")
-            
+            print(f"[API] 자동 업데이트 설치 시작: {file_path} (OS: {system})")
+
             if system == "Darwin":
-                # macOS: DMG 마운트 → 앱 복사 → 재실행
-                import shutil
-                mount_point = "/Volumes/Bell"
-                
-                # 먼저 마운트 해제 시도 (이전 마운트가 있을 경우)
-                subprocess.run(["hdiutil", "detach", mount_point], capture_output=True)
-                
-                # DMG 마운트
-                result = subprocess.run(
-                    ["hdiutil", "attach", file_path, "-mountpoint", mount_point, "-nobrowse"],
-                    capture_output=True, text=True
-                )
-                if result.returncode != 0:
-                    return {"success": False, "error": f"DMG 마운트 실패: {result.stderr}"}
-                
-                # Bell.app 를 /Applications에 복사
-                src_app = f"{mount_point}/Bell.app"
+                # ── macOS 자동 업데이트 ────────────────────────────────
+                # 1. 독립 쉘 스크립트 작성 (Bell 종료 후에도 계속 실행)
                 dst_app = "/Applications/Bell.app"
+                mount_pt = "/Volumes/Bell_Update"
                 
-                if os.path.exists(src_app):
-                    if os.path.exists(dst_app):
-                        shutil.rmtree(dst_app)
-                    shutil.copytree(src_app, dst_app)
-                    print(f"[API] 앱 복사 완료: {dst_app}")
-                else:
-                    return {"success": False, "error": f"Bell.app을 DMG에서 찾을 수 없습니다: {src_app}"}
-                
-                # DMG 마운트 해제
-                subprocess.run(["hdiutil", "detach", mount_point], capture_output=True)
-                
-                # 새 버전 실행 후 현재 프로세스 종료
-                subprocess.Popen(["open", dst_app])
-                import threading
-                threading.Timer(1.5, lambda: os._exit(0)).start()
-                return {"success": True, "message": "업데이트 설치 완료. 재시작 중..."}
-            
+                script = f"""#!/bin/bash
+sleep 2
+hdiutil detach "{mount_pt}" 2>/dev/null
+hdiutil attach "{file_path}" -mountpoint "{mount_pt}" -nobrowse -quiet
+if [ -d "{mount_pt}/Bell.app" ]; then
+    rm -rf "{dst_app}"
+    cp -R "{mount_pt}/Bell.app" "{dst_app}"
+    hdiutil detach "{mount_pt}" -quiet 2>/dev/null
+    open "{dst_app}"
+fi
+rm -f "$0"
+"""
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.sh',
+                                                 delete=False, dir='/tmp') as f:
+                    f.write(script)
+                    script_path = f.name
+
+                os.chmod(script_path, 0o755)
+                # 독립 프로세스로 실행 (Bell이 종료돼도 계속 실행됨)
+                subprocess.Popen(['/bin/bash', script_path],
+                                  stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL,
+                                  close_fds=True,
+                                  start_new_session=True)
+
+                # 2. 부모 프로세스(main.py 트레이)도 종료 → 새 Bell이 단독으로 실행
+                def quit_all():
+                    try:
+                        os.kill(os.getppid(), signal.SIGTERM)  # main.py 종료
+                    except Exception:
+                        pass
+                    os._exit(0)  # gui_process 자신도 종료
+
+                threading.Timer(1.0, quit_all).start()
+                return {"success": True, "message": "업데이트 설치 중... 2초 후 자동 재시작됩니다."}
+
             elif system == "Windows":
-                # Windows: 설치 파일 실행 (UAC 포함) 후 앱 종료
+                # ── Windows 자동 업데이트 ──────────────────────────────
+                # 현재 Bell.exe 경로
+                current_exe = sys.executable if getattr(sys, 'frozen', False) else sys.executable
+                
+                bat = f"""@echo off
+timeout /t 2 /nobreak >nul
+taskkill /IM Bell.exe /F >nul 2>&1
+timeout /t 1 /nobreak >nul
+copy /Y "{file_path}" "{current_exe}"
+start "" "{current_exe}"
+del "%~f0"
+"""
+                bat_path = os.path.join(tempfile.gettempdir(), 'bell_update.bat')
+                with open(bat_path, 'w') as f:
+                    f.write(bat)
+
                 subprocess.Popen(
-                    [file_path],
-                    creationflags=getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+                    [bat_path],
+                    creationflags=getattr(subprocess, 'CREATE_NEW_CONSOLE', 0) |
+                                  getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0),
+                    close_fds=True
                 )
-                import threading
                 threading.Timer(1.0, lambda: os._exit(0)).start()
-                return {"success": True, "message": "설치 프로그램 실행 중..."}
-            
+                return {"success": True, "message": "업데이트 설치 중... 자동 재시작됩니다."}
+
             else:
                 return {"success": False, "error": f"지원하지 않는 OS: {system}"}
-                
+
         except Exception as e:
             print(f"[API] 설치 오류: {e}")
             import traceback
