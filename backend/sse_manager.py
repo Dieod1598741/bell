@@ -18,8 +18,14 @@ class SSEManager:
         if not hasattr(self, '_initialized'):
             self.clients = []
             self.lock = threading.Lock()
+            self._webview_window = None  # pywebview window 직접 참조
             self._initialized = True
             print("[SSEManager] Initialized singleton")
+
+    def register_window(self, window):
+        """pywebview window 직접 참조 등록 (window 생성 후 즉시 호출)"""
+        self._webview_window = window
+        print(f"[SSEManager] pywebview window registered: {window}")
 
     def add_client(self):
         q = queue.Queue()
@@ -37,10 +43,10 @@ class SSEManager:
         print(f"[SSE] Client disconnected. Total clients: {len(self.clients)}")
 
     def broadcast(self, event_type, data):
-        """모든 클라이언트에게 이벤트 전송 (SSE큐 + pywebview evaluate_js 이중 전송)"""
+        """모든 클라이언트에게 이벤트 전송 (SSE큐 + pywebview window 직접 dispatch 이중 전송)"""
         message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
-        # 1. SSE 큐 전송 (HTTP EventSource 연결된 경우)
+        # 1. HTTP SSE 큐 전송 (EventSource 연결된 경우)
         with self.lock:
             dead = []
             for q in self.clients:
@@ -54,12 +60,13 @@ class SSEManager:
                 except ValueError:
                     pass
 
-        # 2. pywebview evaluate_js 직접 전송 (백그라운드 스레드에서 비동기 실행)
-        def _push_to_webview():
-            try:
-                import webview
-                payload_json = json.dumps({"type": event_type, "data": data})
-                js = f"""
+        # 2. pywebview window 직접 evaluate_js (가장 확실한 방법, 윈도우/맥 모두 지원)
+        win = self._webview_window
+        if win is not None:
+            def _push():
+                try:
+                    payload_json = json.dumps({"type": event_type, "data": data})
+                    js = f"""
 (function() {{
     try {{
         var ev = new CustomEvent('bell-sse', {{detail: {payload_json}}});
@@ -67,15 +74,11 @@ class SSEManager:
     }} catch(e) {{}}
 }})();
 """
-                for win in (webview.windows or []):
-                    try:
-                        win.evaluate_js(js)
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+                    win.evaluate_js(js)
+                except Exception as e:
+                    print(f"[SSEManager] evaluate_js 실패: {e}")
 
-        threading.Thread(target=_push_to_webview, daemon=True).start()
+            threading.Thread(target=_push, daemon=True).start()
 
     def publish_update(self, table, action, record=None):
         """데이터 변경 이벤트 브로드캐스트"""

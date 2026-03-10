@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.57"
+CURRENT_VERSION = "v1.1.58"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -1181,7 +1181,10 @@ def run_gui():
         resizable=True,
         js_api=api
     )
-    
+
+    # SSEManager에 window 직접 등록 (evaluate_js로 실시간 이벤트 push용)
+    api.sse_manager.register_window(window)
+
     print(f"[GUI] 창 생성 완료")
     
     # WebView localStorage 영구 저장 경로 설정
