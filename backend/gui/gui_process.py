@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.52"
+CURRENT_VERSION = "v1.1.53"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -212,43 +212,6 @@ class API:
             print(f"[API] openUrl 오류: {e}")
             return {"success": False, "error": str(e)}
 
-    def downloadUpdate(self, url):
-        """배경에서 업데이트 파일 다운로드"""
-        try:
-            if not url:
-                return {"success": False, "error": "URL이 없습니다."}
-            
-            # 저장 경로 설정 (~/.bell/updates/)
-            update_dir = DATA_DIR / "updates"
-            update_dir.mkdir(exist_ok=True)
-            
-            filename = url.split('/')[-1]
-            save_path = update_dir / filename
-            
-            # 다운로드 시작
-            print(f"[API] 업데이트 다운로드 시작: {url}")
-            response = requests.get(url, stream=True, timeout=30)
-            if response.status_code == 200:
-                total_size = int(response.headers.get('content-length', 0))
-                downloaded_size = 0
-                
-                with open(save_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                            downloaded_size += len(chunk)
-                            # 진행률 계산 (필요 시 SSE로 쏠 수 있음)
-                            
-                print(f"[API] 다운로드 완료: {save_path}")
-                return {
-                    "success": True, 
-                    "savePath": str(save_path),
-                    "filename": filename
-                }
-            return {"success": False, "error": f"HTTP 오류: {response.status_code}"}
-        except Exception as e:
-            print(f"[API] downloadUpdate 오류: {e}")
-            return {"success": False, "error": str(e)}
 
 
     def _init_activity_monitor(self):
@@ -782,38 +745,48 @@ class API:
             return {"success": False, "error": str(e)}
     
     def downloadUpdate(self, url):
-        """업데이트 파일 다운로드 (스트리밍)"""
+        """업데이트 파일 다운로드 (스트리밍, 검증 포함)"""
         try:
             import platform
-            
+
             update_dir = DATA_DIR / "update"
             update_dir.mkdir(exist_ok=True)
-            
+
             system = platform.system()
             ext = ".dmg" if system == "Darwin" else ".exe"
             save_path = str(update_dir / f"Bell_update{ext}")
-            
+
             print(f"[API] 업데이트 다운로드 시작: {url} → {save_path}")
-            
-            resp = requests.get(url, stream=True, timeout=120)
+
+            resp = requests.get(url, stream=True, timeout=120, allow_redirects=True)
+            if resp.status_code != 200:
+                return {"success": False, "error": f"HTTP {resp.status_code}: 다운로드 실패"}
+
             total = int(resp.headers.get("content-length", 0))
             downloaded = 0
-            
+
             with open(save_path, "wb") as f:
-                for chunk in resp.iter_content(chunk_size=8192):
+                for chunk in resp.iter_content(chunk_size=65536):
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
-            
+
+            # 파일 크기 검증 (최소 100KB - HTML 에러 페이지 방지)
+            file_size = os.path.getsize(save_path)
+            print(f"[API] 다운로드 완료: {save_path} ({file_size:,} bytes)")
+            if file_size < 100_000:
+                os.remove(save_path)
+                return {"success": False, "error": f"다운로드된 파일이 너무 작습니다 ({file_size} bytes). 다시 시도해주세요."}
+
             # 다운로드 완료 경로를 파일에 저장 (창 닫아도 유지)
             pending_file = DATA_DIR / "pending_update.txt"
             pending_file.write_text(save_path, encoding='utf-8')
-            
-            print(f"[API] 다운로드 완료: {save_path}")
+
             return {"success": True, "savePath": save_path}
         except Exception as e:
             print(f"[API] 다운로드 오류: {e}")
             return {"success": False, "error": str(e)}
+
 
     def getPendingUpdate(self):
         """미설치 다운로드 파일 경로 반환 (창 재오픈 시 설치 버튼 복원용)"""
