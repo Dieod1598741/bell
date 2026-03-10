@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.35"
+CURRENT_VERSION = "v1.1.36"
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -473,7 +473,7 @@ class API:
     def getMessages(self, user_id, current_user_id, limit_val=50):
         """채팅 메시지 로드 (PostgreSQL)"""
         try:
-            query = 'SELECT * FROM "chats" WHERE (("sender_user_id" = %s AND "target_user_id" = %s) OR ("sender_user_id" = %s AND "target_user_id" = %s)) AND "del_yn" = \'n\' ORDER BY "created_at" ASC LIMIT %s'
+            query = 'SELECT * FROM "chats" WHERE (("sender_user_id" = %s AND "target_user_id" = %s) OR ("sender_user_id" = %s AND "target_user_id" = %s)) AND "del_yn" = \'n\' ORDER BY "timestamp" ASC LIMIT %s'
             result, error = self.db_manager.execute_query(query, (user_id, current_user_id, current_user_id, user_id, limit_val))
             if error:
                 print(f"[API] getMessages DB 오류: {error}")
@@ -486,7 +486,7 @@ class API:
     def getInbox(self, user_id, limit_val=50):
         """인박스 알림 로드"""
         try:
-            query = 'SELECT * FROM "inbox" WHERE "target_user_id" = %s AND "del_yn" = \'n\' ORDER BY "created_at" DESC LIMIT %s'
+            query = 'SELECT * FROM "inbox" WHERE "target_user_id" = %s AND "del_yn" = \'n\' ORDER BY "timestamp" DESC LIMIT %s'
             result, error = self.db_manager.execute_query(query, (user_id, limit_val))
             if error:
                 return {"success": False, "error": f"인박스 조회 실패: {error}"}

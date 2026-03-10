@@ -26,6 +26,15 @@ hidden_imports = [
     'dotenv',
     'webview',
     'certifi',
+    'requests',
+    'requests.adapters',
+    'requests.auth',
+    'requests.cookies',
+    'requests.models',
+    'requests.sessions',
+    'urllib3',
+    'charset_normalizer',
+    'idna',
 ]
 
 a = Analysis(
