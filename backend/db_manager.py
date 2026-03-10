@@ -93,10 +93,28 @@ class DBManager:
         return self.execute_query(query, (status, user_id), fetch=False)
 
     def create_user(self, user_data):
-        columns = ', '.join(user_data.keys())
-        placeholders = ', '.join(['%s'] * len(user_data))
-        query = f"INSERT INTO users ({columns}) VALUES ({placeholders}) ON CONFLICT (id) DO UPDATE SET updated_at = CURRENT_TIMESTAMP"
-        return self.execute_query(query, tuple(user_data.values()), fetch=False)
+        """사용자 정보를 데이터베이스에 저장 (필드 매핑 포함)"""
+        # 프론트엔드 CamelCase 필드를 DB snake_case 필드로 매핑
+        mapping = {
+            'nickNm': 'nick_nm',
+            'avatarColor': 'avatar_color',
+            'connectionStatus': 'connection_status',
+            'userStatus': 'user_status'
+        }
+        
+        processed_data = {}
+        for k, v in user_data.items():
+            db_key = mapping.get(k, k)
+            processed_data[db_key] = v
+            
+        columns = ', '.join(processed_data.keys())
+        placeholders = ', '.join(['%s'] * len(processed_data))
+        query = f"INSERT INTO users ({columns}) VALUES ({placeholders}) ON CONFLICT (id) DO UPDATE SET " \
+                f"name = EXCLUDED.name, nick_nm = EXCLUDED.nick_nm, email = EXCLUDED.email, " \
+                f"updated_at = CURRENT_TIMESTAMP"
+        
+        print(f"[DB] Creating/Updating user: {processed_data.get('id')}")
+        return self.execute_query(query, tuple(processed_data.values()), fetch=False)
 
     def get_unread_count(self, user_id):
         """읽지 않은 메시지 및 알림 총 개수 반환"""
