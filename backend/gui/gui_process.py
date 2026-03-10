@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.68"
+CURRENT_VERSION = "v1.1.69"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -833,7 +833,9 @@ class API:
                 "hasUpdate": True,
                 "currentVersion": CURRENT_VERSION,
                 "latestVersion": latest_version,
-                "downloadUrl": download_url,
+                "downloadUrl": download_url,            # 빌드파일 URL (없으면 "")
+                "releasePageUrl": data.get("html_url", ""),  # 릴리즈 페이지 URL (항상 있음)
+                "assetAvailable": bool(download_url),   # 빌드파일 첨부 여부
                 "releaseNotes": release_notes
             }
         except Exception as e:
@@ -1038,10 +1040,20 @@ echo "[update] done"
                 bat = f"""@echo off
 timeout /t 2 /nobreak >nul
 taskkill /IM Bell.exe /F >nul 2>&1
-timeout /t 1 /nobreak >nul
-copy /Y "{file_path}" "{current_exe}"
-del /F /Q "{file_path}"
-REM BELL_GUI_MODE 환경변수를 초기화해서 트레이 모드로 시작되게 함
+timeout /t 2 /nobreak >nul
+
+REM 기존 exe를 .bak으로 이동 후 새 파일 배치 (실행 중인 파일 직접 덮어쓰기 방지)
+if exist "{current_exe}.bak" del /F /Q "{current_exe}.bak"
+move /Y "{current_exe}" "{current_exe}.bak" >nul 2>&1
+move /Y "{file_path}" "{current_exe}"
+
+REM move 실패 시 copy fallback
+if not exist "{current_exe}" (
+    copy /Y "{file_path}" "{current_exe}" >nul 2>&1
+)
+
+del /F /Q "{current_exe}.bak" >nul 2>&1
+del /F /Q "{file_path}" >nul 2>&1
 SET BELL_GUI_MODE=
 SET BELL_IPC_PORT=
 start "" "{current_exe}"

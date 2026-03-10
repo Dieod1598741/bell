@@ -51,6 +51,8 @@ import { sseClient } from '@/services/sseClient'
 const hasUpdate = ref(false)
 const latestVersion = ref('')
 const downloadUrl = ref('')
+const releasePageUrl = ref('')    // 릴리즈 페이지 URL (항상 있음)
+const assetAvailable = ref(false) // 빌드파일(.exe/.dmg) 첨부 여부
 const isDownloading = ref(false)
 const isDownloaded = ref(false)
 const savedFilePath = ref('')
@@ -64,7 +66,9 @@ const checkUpdate = async () => {
     if (result.success && result.hasUpdate) {
       hasUpdate.value = true
       latestVersion.value = result.latestVersion
-      downloadUrl.value = result.downloadUrl
+      downloadUrl.value = result.downloadUrl || ''
+      releasePageUrl.value = result.releasePageUrl || ''
+      assetAvailable.value = result.assetAvailable ?? !!result.downloadUrl
     }
   } catch (error) {
     console.error('[UpdateAlert] 업데이트 확인 실패:', error)
@@ -76,7 +80,12 @@ const handleUpdate = async () => {
     await backendService.runInstaller(savedFilePath.value)
     return
   }
-  if (!downloadUrl.value) return
+
+  // 빌드파일 첨부 없는 릴리즈 → 브라우저로 릴리즈 페이지 열기
+  if (!assetAvailable.value || !downloadUrl.value) {
+    backendService.openUrl(releasePageUrl.value || downloadUrl.value)
+    return
+  }
 
   isDownloading.value = true
   downloadProgress.value = 0
@@ -95,11 +104,11 @@ const handleUpdate = async () => {
       isDownloaded.value = true
       savedFilePath.value = result.savePath
     } else {
-      backendService.openUrl(downloadUrl.value)
+      backendService.openUrl(releasePageUrl.value || downloadUrl.value)
     }
   } catch (error) {
     console.error('[UpdateAlert] 다운로드 중 오류:', error)
-    backendService.openUrl(downloadUrl.value)
+    backendService.openUrl(releasePageUrl.value || downloadUrl.value)
   } finally {
     isDownloading.value = false
     unwatch()
