@@ -131,71 +131,36 @@ class BellApp:
         print("[창 열기] GUI 창 열기 시도...")
         
         try:
-            # PyInstaller로 빌드된 경우에도 별도 프로세스로 실행
-            # (pywebview는 메인 스레드에서만 실행 가능)
+            # 환경 변수 설정
+            env = os.environ.copy()
+            env['BELL_GUI_MODE'] = '1'
+            env['BELL_IPC_PORT'] = '0' # 필요시 자동 할당 유도
+            
             if getattr(sys, 'frozen', False):
-                # PyInstaller로 빌드된 경우: 환경 변수를 설정하여 GUI 전용 모드로 실행
-                # (무한 루프 방지)
-                import tempfile
-                gui_code = '''
-import sys
-import os
-os.environ["BELL_GUI_MODE"] = "1"
-if getattr(sys, "frozen", False):
-    sys.path.insert(0, sys._MEIPASS)
-from gui import gui_process
-gui_process.run_gui()
-'''
-                # 임시 파일에 코드 작성
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-                    f.write(gui_code)
-                    temp_script = f.name
-                
-                try:
-                    # 환경 변수 설정하여 무한 루프 방지
-                    env = os.environ.copy()
-                    env['BELL_GUI_MODE'] = '1'
-                    
-                    process = subprocess.Popen(
-                        [sys.executable, temp_script], 
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        env=env,
-                        text=True,
-                        bufsize=1
-                    )
-                    self.gui_process = process
-                    self._start_output_reader(process)
-                    print(f"[창 열기] GUI 프로세스 시작됨 (PID: {process.pid})")
-                finally:
-                    # 임시 파일은 프로세스가 시작된 후 삭제 가능
-                    try:
-                        os.unlink(temp_script)
-                    except:
-                        pass
+                # PyInstaller 빌드 환경: 자기 자신을 GUI 모드로 실행
+                executable = sys.executable
+                args = [executable]
+                print(f"[창 열기] 빌드 환경 실행: {executable}")
             else:
-                # 일반 실행: 별도 프로세스로 실행
+                # 개발 환경: gui_process.py 직접 실행
+                executable = sys.executable
                 backend_dir = os.path.dirname(os.path.abspath(__file__))
                 gui_script = os.path.join(backend_dir, 'gui', 'gui_process.py')
-                
-                if os.path.exists(gui_script):
-                    # 환경 변수 설정하여 무한 루프 방지 및 GUI 모드 활성화
-                    env = os.environ.copy()
-                    env['BELL_GUI_MODE'] = '1'
-                    
-                    process = subprocess.Popen(
-                        [sys.executable, gui_script], 
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        env=env,
-                        text=True,
-                        bufsize=1
-                    )
-                    self.gui_process = process
-                    self._start_output_reader(process)
-                    print(f"[창 열기] GUI 프로세스 시작됨 (PID: {process.pid})")
-                else:
-                    print(f"[창 열기] GUI 스크립트를 찾을 수 없습니다: {gui_script}")
+                args = [executable, gui_script]
+                print(f"[창 열기] 개발 환경 실행: {gui_script}")
+
+            process = subprocess.Popen(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                env=env,
+                text=True,
+                bufsize=1
+            )
+            self.gui_process = process
+            self._start_output_reader(process)
+            print(f"[창 열기] GUI 프로세스 시작됨 (PID: {process.pid})")
+            
         except Exception as e:
             print(f"[창 열기] GUI 실행 오류: {e}")
             import traceback

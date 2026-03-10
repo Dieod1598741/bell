@@ -66,16 +66,28 @@ class DBManager:
         if not self.host or not self.password:
             print(f"[DB] Error: Database credentials missing in environment (Host: {'OK' if self.host else 'Missing'})")
         
+        # SSL 인증서 경로 설정 (Neon DB 등에서 필수)
+        ssl_ca_path = None
         try:
-            self.connection_pool = psycopg2.pool.SimpleConnectionPool(
-                1, 20,
-                host=self.host,
-                database=self.dbname,
-                user=self.user,
-                password=self.password,
-                port=self.port,
-                sslmode='require' # Neon DB 등에서 필수
-            )
+            import certifi
+            ssl_ca_path = certifi.where()
+            print(f"[DB] Using certifi CA bundle: {ssl_ca_path}")
+        except ImportError:
+            print("[DB] Warning: certifi not found, relying on system CA bundle")
+
+        try:
+            conn_params = {
+                "host": self.host,
+                "database": self.dbname,
+                "user": self.user,
+                "password": self.password,
+                "port": self.port,
+                "sslmode": 'require'
+            }
+            if ssl_ca_path:
+                conn_params["sslrootcert"] = ssl_ca_path
+                
+            self.connection_pool = psycopg2.pool.SimpleConnectionPool(1, 20, **conn_params)
             print("[DB] Connection pool created successfully")
             self._initialized = True
         except Exception as e:

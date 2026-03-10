@@ -25,6 +25,7 @@ hidden_imports = [
     'psycopg2',
     'dotenv',
     'webview',
+    'certifi',
 ]
 
 a = Analysis(
