@@ -157,8 +157,10 @@ class DBManager:
     # --- User-related operations ---
     
     def get_user(self, user_id):
-        query = 'SELECT * FROM "users" WHERE "id" = %s AND "del_yn" = \'n\''
-        return self.execute_one(query, (user_id,))
+        """사용자 ID로 정보 조회 (대소문자 구분 없음)"""
+        if not user_id: return None
+        query = 'SELECT * FROM "users" WHERE LOWER("id") = LOWER(%s) AND "del_yn" = \'n\''
+        return self.execute_one(query, (user_id.strip(),))
 
     def update_user_status(self, user_id, status):
         query = 'UPDATE "users" SET "user_status" = %s, "updated_at" = CURRENT_TIMESTAMP WHERE "id" = %s'

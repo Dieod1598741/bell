@@ -1,7 +1,7 @@
 import { backendService } from './backendService'
 import { sseClient } from './sseClient'
 
-async function hashPassword(password) {
+export async function hashPassword(password) {
   const encoder = new TextEncoder()
   const data = encoder.encode(password)
   const hashBuffer = await crypto.subtle.digest('SHA-256', data)

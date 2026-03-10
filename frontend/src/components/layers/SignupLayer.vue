@@ -107,7 +107,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { createUser, checkUserIdExists, checkNicknameExists } from '@/services/userService'
+import { createUser, checkUserIdExists, checkNicknameExists, hashPassword } from '@/services/userService'
 import ActionLayer from '@/components/layers/ActionLayer.vue'
 
 const props = defineProps({
@@ -272,12 +272,15 @@ const handleSignup = async () => {
   error.value = ''
 
   try {
+    // 비밀번호 해시화
+    const hashedPassword = await hashPassword(form.value.password)
+    
     const result = await createUser({
       id: form.value.userId.trim(),
       name: form.value.name.trim(),
       nickNm: form.value.nickNm.trim(),
       email: form.value.email.trim(),
-      password: form.value.password, // 실제로는 해시화 필요
+      password: hashedPassword, 
       avatar: '/icon/icon1.svg', // 기본 이미지 설정
       avatar_color: '#409EFF', // 기본 색상 설정
       del_yn: 'n',
