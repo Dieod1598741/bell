@@ -288,13 +288,13 @@ class API:
         """채팅 메시지 전송 및 SSE 전파"""
         try:
             query = "INSERT INTO chats (sender_user_id, target_user_id, content) VALUES (%s, %s, %s) RETURNING *"
-            result = self.db_manager.execute_query(query, (sender_id, target_id, content))
+            result, error = self.db_manager.execute_query(query, (sender_id, target_id, content))
             if result:
                 msg = result[0]
                 # 타겟과 본인에게 알림
                 self.sse_manager.broadcast("NEW_CHAT", msg)
                 return {"success": True, "data": msg}
-            return {"success": False, "error": "메시지 저장 실패"}
+            return {"success": False, "error": f"메시지 저장 실패: {error}"}
         except Exception as e:
             print(f"[API] sendChatMessage 오류: {e}")
             return {"success": False, "error": str(e)}
@@ -305,7 +305,7 @@ class API:
             results = []
             for user_id in user_ids:
                 query = "INSERT INTO announcements (sender_user_id, target_user_id, message) VALUES (%s, %s, %s) RETURNING *"
-                res = self.db_manager.execute_query(query, (sender_id, user_id, message))
+                res, error = self.db_manager.execute_query(query, (sender_id, user_id, message))
                 if res:
                     results.append(res[0])
             
@@ -319,13 +319,10 @@ class API:
     def getMessages(self, user_id, current_user_id, limit_val=50):
         """채팅 메시지 로드 (PostgreSQL)"""
         try:
-            query = """
-                SELECT * FROM chats 
-                WHERE (sender_user_id = %s AND target_user_id = %s)
-                   OR (sender_user_id = %s AND target_user_id = %s)
-                ORDER BY timestamp ASC LIMIT %s
-            """
-            result = self.db_manager.execute_query(query, (user_id, current_user_id, current_user_id, user_id, limit_val))
+            query = 'SELECT * FROM "chats" WHERE ("sender_user_id" = %s AND "target_user_id" = %s) OR ("sender_user_id" = %s AND "target_user_id" = %s) AND "del_yn" = \'n\' ORDER BY "created_at" ASC LIMIT %s'
+            result, error = self.db_manager.execute_query(query, (user_id, current_user_id, current_user_id, user_id, limit_val))
+            if error:
+                return {"success": False, "error": f"메시지 조회 실패: {error}"}
             return {"success": True, "data": result or []}
         except Exception as e:
             print(f"[API] getMessages 오류: {e}")
@@ -334,8 +331,10 @@ class API:
     def getInbox(self, user_id, limit_val=50):
         """인박스 알림 로드"""
         try:
-            query = "SELECT * FROM inbox WHERE target_user_id = %s AND del_yn = 'n' ORDER BY timestamp DESC LIMIT %s"
-            result = self.db_manager.execute_query(query, (user_id, limit_val))
+            query = 'SELECT * FROM "inbox" WHERE "target_user_id" = %s AND "del_yn" = \'n\' ORDER BY "created_at" DESC LIMIT %s'
+            result, error = self.db_manager.execute_query(query, (user_id, limit_val))
+            if error:
+                return {"success": False, "error": f"인박스 조회 실패: {error}"}
             return {"success": True, "data": result or []}
         except Exception as e:
             print(f"[API] getInbox 오류: {e}")
@@ -355,8 +354,8 @@ class API:
     def getAllUsers(self):
         """전체 사용자 목록 (관리자용 또는 목록용)"""
         try:
-            query = "SELECT id, name, nick_nm, avatar, user_status, connection_status FROM users WHERE del_yn = 'n' ORDER BY nick_nm ASC"
-            result = self.db_manager.execute_query(query)
+            query = 'SELECT "id", "name", "nick_nm", "avatar", "user_status", "connection_status", "permission" FROM "users" WHERE "del_yn" = \'n\' ORDER BY "nick_nm" ASC'
+            result, error = self.db_manager.execute_query(query)
             return {"success": True, "data": result or []}
         except Exception as e:
             print(f"[API] getAllUsers 오류: {e}")
