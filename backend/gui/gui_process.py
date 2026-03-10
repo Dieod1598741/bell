@@ -240,6 +240,8 @@ class API:
             if not user_data:
                 return {"success": False, "error": "user_data가 필요합니다"}
             
+            print(f"[API] saveUserInfo 호출: {user_data.get('id')}")
+            
             # 1. 로컬 저장
             self.user_manager.save_user(user_data)
             
@@ -247,6 +249,7 @@ class API:
             db_success, db_error = self.db_manager.create_user(user_data)
             
             if not db_success:
+                print(f"[API] DB 저장 실패 에러 상세: {db_error}")
                 return {"success": False, "error": f"데이터베이스 저장 실패: {db_error}"}
             
             # 3. SSE 알림
@@ -255,7 +258,13 @@ class API:
             return {"success": True, "message": "저장 및 동기화 완료"}
         except Exception as e:
             print(f"[API] saveUserInfo 오류: {e}")
+            import traceback
+            traceback.print_exc()
             return {"success": False, "error": str(e)}
+
+    def updateUserInfo(self, user_data):
+        """saveUserInfo의 별칭 (프론트엔드 호환용)"""
+        return self.saveUserInfo(user_data)
 
     # --- 실시간 채팅 및 알림 API ---
 

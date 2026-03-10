@@ -112,13 +112,14 @@ class DBManager:
             # 타입 힌트 에러 방지를 위해 명시적 캐스팅 또는 간단한 할당
             processed_data[str(db_key)] = v
             
-        columns = ', '.join(processed_data.keys())
-        placeholders = ', '.join(['%s'] * len(processed_data))
+        keys = list(processed_data.keys())
+        columns = ', '.join([f'"{k}"' for k in keys])
+        placeholders = ', '.join(['%s'] * len(keys))
         
         # 업데이트할 컬럼들 (id 제외)
-        update_cols = [col for col in processed_data.keys() if col != 'id']
+        update_cols = [col for col in keys if col != 'id']
         if update_cols:
-            update_stmt = ', '.join([f"{col} = EXCLUDED.{col}" for col in update_cols])
+            update_stmt = ', '.join([f'"{col}" = EXCLUDED."{col}"' for col in update_cols])
             query = f"INSERT INTO users ({columns}) VALUES ({placeholders}) " \
                     f"ON CONFLICT (id) DO UPDATE SET {update_stmt}, updated_at = CURRENT_TIMESTAMP"
         else:
@@ -126,7 +127,7 @@ class DBManager:
                     f"ON CONFLICT (id) DO NOTHING"
         
         print(f"[DB] Creating/Updating user: {processed_data.get('id')}")
-        result, error = self.execute_query(query, tuple(processed_data.values()), fetch=False)
+        result, error = self.execute_query(query, tuple(processed_data[k] for k in keys), fetch=False)
         if error:
             return False, error
         return True, None
