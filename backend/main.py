@@ -45,11 +45,13 @@ class BellApp:
         data_dir = Path.home() / ".bell" / "webview_data"
         self.user_manager = UserInfoManager(str(data_dir))
         
-        # 트레이 관리자 초기화 (machine_id 전달)
+        # 트레이 관리자 초기화 (machine_id, app_version 전달)
+        from gui.gui_process import CURRENT_VERSION  # type: ignore
         self.tray_manager = TrayManager(
             on_show_window=self.show_window,
             on_quit=self.quit,
-            machine_id=self.machine_id
+            machine_id=self.machine_id,
+            app_version=CURRENT_VERSION
         )
         
         # SSE 리스너 상태

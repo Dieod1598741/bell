@@ -26,12 +26,13 @@ def resource_path(relative_path):
 class PystrayTrayManager(BaseTrayManager):
     """pystray와 PIL을 사용한 단일화된 트레이 관리자"""
     
-    def __init__(self, on_show_window=None, on_quit=None, on_show_status=None, machine_id=None):
+    def __init__(self, on_show_window=None, on_quit=None, on_show_status=None, machine_id=None, app_version='v0.0.0'):
         # BaseTrayManager.__init__를 명시적으로 호출 (린트 오류 방지)
         BaseTrayManager.__init__(self, on_show_window, on_quit, on_show_status)
         self.pystray_icon: Optional[pystray.Icon] = None
         self.current_status = 'offline'
         self.unread_count = 0
+        self.app_version = app_version  # 버전 저장 (cross-package import 대신 생성자 주입)
         
         # 아이콘 검색 (우선순위에 따라)
         self.icon_path: Optional[str] = None
@@ -182,10 +183,10 @@ class PystrayTrayManager(BaseTrayManager):
             """백그라운드 스레드에서 업데이트 확인"""
             def _do_check():
                 try:
-                    # gui_process.py의 API 객체를 통해 checkUpdate 호출
                     import requests as req  # type: ignore
-                    import platform
-                    from gui_process import CURRENT_VERSION  # type: ignore
+                    # PyInstaller 번들에서는 cross-package import가 실패할 수 있으므로
+                    # self.app_version 사용 (생성자에서 주입)
+                    current_ver = self.app_version
                     resp = req.get(
                         "https://api.github.com/repos/Dieod1598741/bell/releases/latest",
                         timeout=10, headers={"Accept": "application/vnd.github+json",
@@ -195,16 +196,18 @@ class PystrayTrayManager(BaseTrayManager):
                     latest = data.get("tag_name", "")
                     def parse_ver(v):
                         return tuple(int(x) for x in v.lstrip("v").split("."))
-                    if latest and parse_ver(latest) > parse_ver(CURRENT_VERSION):
+                    if latest and parse_ver(latest) > parse_ver(current_ver):
                         self.show_notification(
                             "Bell 업데이트",
                             f"새 버전 {latest} 이 출시됐습니다! 앱을 열어 업데이트하세요."
                         )
                     else:
-                        self.show_notification("Bell", f"현재 최신 버전입니다 ({CURRENT_VERSION})")
+                        self.show_notification("Bell", f"현재 최신 버전입니다 ({current_ver})")
                 except Exception as e:
+                    import traceback
                     print(f"[Pystray] 업데이트 확인 오류: {e}")
-                    self.show_notification("Bell", "업데이트 확인 실패. 네트워크를 확인하세요.")
+                    traceback.print_exc()
+                    self.show_notification("Bell", f"업데이트 확인 실패: {e}")
             threading.Thread(target=_do_check, daemon=True).start()
         
         # ── 메뉴 구성 (callable title → 동적 텍스트) ────────────────────
