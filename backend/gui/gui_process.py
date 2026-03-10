@@ -9,6 +9,8 @@ from threading import Thread
 import socket
 import queue
 import time
+import requests
+import webbrowser
 
 # 상위 디렉토리를 경로에 추가
 backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -33,6 +35,8 @@ from machine_id import get_hardware_uuid
 from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
+
+CURRENT_VERSION = "v1.1.13"
 
 
 class API:
@@ -122,6 +126,44 @@ class API:
         except Exception as e:
             print(f"[API] Notification SSE broadcast failed: {e}")
     
+    # --- System 및 Update API ---
+    
+    def checkUpdate(self):
+        """GitHub 최신 릴리즈 확인"""
+        try:
+            repo_url = "https://api.github.com/repos/Dieod1598741/bell/releases/latest"
+            response = requests.get(repo_url, timeout=5)
+            if response.status_code == 200:
+                latest_data = response.json()
+                latest_version = latest_data.get('tag_name')
+                
+                # 버전 비교 (v1.1.13 vs v1.1.14 등)
+                has_update = latest_version != CURRENT_VERSION
+                
+                return {
+                    "success": True,
+                    "hasUpdate": has_update,
+                    "currentVersion": CURRENT_VERSION,
+                    "latestVersion": latest_version,
+                    "downloadUrl": latest_data.get('html_url'),
+                    "body": latest_data.get('body')
+                }
+            return {"success": False, "error": f"GitHub API 오류: {response.status_code}"}
+        except Exception as e:
+            print(f"[API] checkUpdate 오류: {e}")
+            return {"success": False, "error": str(e)}
+
+    def openUrl(self, url):
+        """시스템 브라우저로 URL 열기"""
+        try:
+            if url:
+                webbrowser.open(url)
+                return {"success": True}
+            return {"success": False, "error": "URL이 없습니다."}
+        except Exception as e:
+            print(f"[API] openUrl 오류: {e}")
+            return {"success": False, "error": str(e)}
+
     def _init_activity_monitor(self):
         """활동 모니터 초기화 (초기에는 시작하지 않음)"""
         self.last_backend_request_time = None

@@ -14,7 +14,9 @@
     />
 
     <!-- 메인 영역 -->
-    <div class="flex-1 flex flex-col">
+    <div class="flex-1 flex flex-col relative">
+      <UpdateAlert />
+      
       <!-- 헤더 -->
       <div class="header bg-white border-b border-gray-200 px-4 py-6">
         <div class="flex items-center gap-3">
@@ -93,6 +95,7 @@ import UserListView from '@/components/user/UserListView.vue'
 import InboxListView from '@/components/inbox/InboxListView.vue'
 import StatusLayer from '@/components/layers/StatusLayer.vue'
 import ProfileEditLayer from '@/components/layers/ProfileEditLayer.vue'
+import UpdateAlert from '@/components/common/UpdateAlert.vue'
 import { watchInbox } from '@/services/inboxService'
 import { watchChats } from '@/services/chatService'
 import { watchAnnouncements } from '@/services/announcementService'

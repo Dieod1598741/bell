@@ -41,5 +41,9 @@ export const backendService = {
     saveLoginSettings: (settings) => callBackend('saveLoginSettings', settings),
 
     // Notification
-    showNotification: (title, message, type) => callBackend('showNotification', title, message, type)
+    showNotification: (title, message, type) => callBackend('showNotification', title, message, type),
+
+    // System / Update
+    checkUpdate: () => callBackend('checkUpdate'),
+    openUrl: (url) => callBackend('openUrl', url)
 };
