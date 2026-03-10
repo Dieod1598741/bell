@@ -39,7 +39,8 @@ class DBManager:
                 database=self.dbname,
                 user=self.user,
                 password=self.password,
-                port=self.port
+                port=self.port,
+                sslmode='require' # Neon DB 등에서 필수
             )
             print("[DB] Connection pool created successfully")
             self._initialized = True
