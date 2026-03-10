@@ -108,17 +108,21 @@ class DBManager:
         for k, v in user_data.items():
             db_key = mapping.get(k, k)
             if db_key == 'confirmPassword': continue # 비밀번호 확인 필드는 제외
-            processed_data[db_key] = v
+            # 타입 힌트 에러 방지를 위해 명시적 캐스팅 또는 간단한 할당
+            processed_data[str(db_key)] = v
             
         columns = ', '.join(processed_data.keys())
         placeholders = ', '.join(['%s'] * len(processed_data))
         
         # 업데이트할 컬럼들 (id 제외)
         update_cols = [col for col in processed_data.keys() if col != 'id']
-        update_stmt = ', '.join([f"{col} = EXCLUDED.{col}" for col in update_cols])
-        
-        query = f"INSERT INTO users ({columns}) VALUES ({placeholders}) " \
-                f"ON CONFLICT (id) DO UPDATE SET {update_stmt}, updated_at = CURRENT_TIMESTAMP"
+        if update_cols:
+            update_stmt = ', '.join([f"{col} = EXCLUDED.{col}" for col in update_cols])
+            query = f"INSERT INTO users ({columns}) VALUES ({placeholders}) " \
+                    f"ON CONFLICT (id) DO UPDATE SET {update_stmt}, updated_at = CURRENT_TIMESTAMP"
+        else:
+            query = f"INSERT INTO users ({columns}) VALUES ({placeholders}) " \
+                    f"ON CONFLICT (id) DO NOTHING"
         
         print(f"[DB] Creating/Updating user: {processed_data.get('id')}")
         result, error = self.execute_query(query, tuple(processed_data.values()), fetch=False)
