@@ -153,13 +153,13 @@ def get_hardware_uuid() -> str:
         _cached_uuid = None
         return None
     
-    # 결과 캐싱 및 로그 출력 (한 번만)
+    # 결과 캐싱 (성공 시만 캐싱, 실패 시 재시도 가능)
     if uuid:
         _cached_uuid = uuid
         print(f"[machine_id] 하드웨어 UUID: {uuid}")
         return uuid
     else:
-        _cached_uuid = None
+        # null은 캐싱하지 않음 → 다음 호출 시 재시도
         print(f"[machine_id] 하드웨어 UUID를 가져올 수 없습니다")
         return None
 

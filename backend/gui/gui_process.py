@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.60"
+CURRENT_VERSION = "v1.1.61"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -549,14 +549,14 @@ class API:
             return {"success": False, "error": str(e)}
     
     def getLoginSettings(self):
-        """하드웨어 ID별 로그인 설정 조회"""
+        """하드웨어 ID별 로그인 설정 조회 (fallback: 'default' 키)"""
         try:
             self._update_backend_request_time()
-            hardware_id = get_hardware_uuid()
-            if not hardware_id:
-                return {"success": False, "error": "하드웨어 ID를 가져올 수 없습니다"}
-            
+            hardware_id = get_hardware_uuid() or 'default'
             settings = self.user_manager.get_login_settings(hardware_id)
+            # default 키로도 없으면 'default' 키로 재시도
+            if not settings and hardware_id != 'default':
+                settings = self.user_manager.get_login_settings('default')
             if settings:
                 return {"success": True, "data": settings}
             else:
@@ -566,15 +566,11 @@ class API:
             return {"success": False, "error": str(e)}
     
     def saveLoginSettings(self, settings):
-        """하드웨어 ID별 로그인 설정 저장"""
+        """하드웨어 ID별 로그인 설정 저장 (fallback: 'default' 키)"""
         try:
-            hardware_id = get_hardware_uuid()
-            if not hardware_id:
-                return {"success": False, "error": "하드웨어 ID를 가져올 수 없습니다"}
-            
+            hardware_id = get_hardware_uuid() or 'default'
             if not settings:
                 return {"success": False, "error": "settings가 필요합니다"}
-            
             result = self.user_manager.save_login_settings(hardware_id, settings)
             if result:
                 return {"success": True, "message": "로그인 설정 저장 완료"}
