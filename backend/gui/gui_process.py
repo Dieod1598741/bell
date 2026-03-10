@@ -164,6 +164,73 @@ class API:
             print(f"[API] openUrl 오류: {e}")
             return {"success": False, "error": str(e)}
 
+    def downloadUpdate(self, url):
+        """배경에서 업데이트 파일 다운로드"""
+        try:
+            if not url:
+                return {"success": False, "error": "URL이 없습니다."}
+            
+            # 저장 경로 설정 (~/.bell/updates/)
+            update_dir = DATA_DIR / "updates"
+            update_dir.mkdir(exist_ok=True)
+            
+            filename = url.split('/')[-1]
+            save_path = update_dir / filename
+            
+            # 다운로드 시작
+            print(f"[API] 업데이트 다운로드 시작: {url}")
+            response = requests.get(url, stream=True, timeout=30)
+            if response.status_code == 200:
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded_size = 0
+                
+                with open(save_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded_size += len(chunk)
+                            # 진행률 계산 (필요 시 SSE로 쏠 수 있음)
+                            
+                print(f"[API] 다운로드 완료: {save_path}")
+                return {
+                    "success": True, 
+                    "savePath": str(save_path),
+                    "filename": filename
+                }
+            return {"success": False, "error": f"HTTP 오류: {response.status_code}"}
+        except Exception as e:
+            print(f"[API] downloadUpdate 오류: {e}")
+            return {"success": False, "error": str(e)}
+
+    def runInstaller(self, file_path):
+        """다운로드된 설치 파일 실행 및 앱 종료"""
+        try:
+            if not file_path or not os.path.exists(file_path):
+                return {"success": False, "error": "파일을 찾을 수 없습니다."}
+            
+            print(f"[API] 설치 프로그램 실행 시도: {file_path}")
+            
+            # 플랫폼별 실행 방식
+            if sys.platform == 'darwin':  # macOS
+                # .dmg 파일 마운트 및 열기
+                os.system(f"open '{file_path}'")
+            elif sys.platform == 'win32':  # Windows
+                # .exe 설치 파일 실행
+                os.startfile(file_path)
+            
+            # 프로그램 종료 (사용자가 설치를 진행할 수 있도록)
+            # 1초 뒤에 종료 (API 응답을 프론트가 받을 시간을 줌)
+            def quit_app():
+                time.sleep(1)
+                print("[API] 업데이트를 위해 종료합니다.")
+                os._exit(0)
+            
+            Thread(target=quit_app).start()
+            return {"success": True}
+        except Exception as e:
+            print(f"[API] runInstaller 오류: {e}")
+            return {"success": False, "error": str(e)}
+
     def _init_activity_monitor(self):
         """활동 모니터 초기화 (초기에는 시작하지 않음)"""
         self.last_backend_request_time = None

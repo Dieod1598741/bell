@@ -9,9 +9,10 @@
             type="primary" 
             size="small" 
             class="update-btn"
+            :loading="isDownloading"
             @click="handleUpdate"
           >
-            업데이트
+            {{ isDownloaded ? '설치 및 재시작' : (isDownloading ? '다운로드 중...' : '업데이트') }}
           </el-button>
           <el-button 
             type="info" 
@@ -35,6 +36,9 @@ import { backendService } from '@/services/backendService'
 const hasUpdate = ref(false)
 const latestVersion = ref('')
 const downloadUrl = ref('')
+const isDownloading = ref(false)
+const isDownloaded = ref(false)
+const savedFilePath = ref('')
 
 const checkUpdate = async () => {
   try {
@@ -49,9 +53,31 @@ const checkUpdate = async () => {
   }
 }
 
-const handleUpdate = () => {
-  if (downloadUrl.value) {
+const handleUpdate = async () => {
+  if (isDownloaded.value) {
+    // 이미 다운로드됨 -> 설치 프로그램 실행
+    await backendService.runInstaller(savedFilePath.value)
+    return
+  }
+
+  if (!downloadUrl.value) return
+  
+  try {
+    isDownloading.value = true
+    // 백엔드에 다운로드 요청
+    const result = await backendService.downloadUpdate(downloadUrl.value)
+    if (result.success) {
+      isDownloaded.value = true
+      savedFilePath.value = result.savePath
+    } else {
+      // 실패 시 브라우저라도 열어줌
+      backendService.openUrl(downloadUrl.value)
+    }
+  } catch (error) {
+    console.error('[UpdateAlert] 다운로드 중 오류:', error)
     backendService.openUrl(downloadUrl.value)
+  } finally {
+    isDownloading.value = false
   }
 }
 

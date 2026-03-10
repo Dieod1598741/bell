@@ -45,5 +45,7 @@ export const backendService = {
 
     // System / Update
     checkUpdate: () => callBackend('checkUpdate'),
+    downloadUpdate: (url) => callBackend('downloadUpdate', url),
+    runInstaller: (filePath) => callBackend('runInstaller', filePath),
     openUrl: (url) => callBackend('openUrl', url)
 };
