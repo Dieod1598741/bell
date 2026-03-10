@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.53"
+CURRENT_VERSION = "v1.1.54"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -166,52 +166,6 @@ class API:
     
     # --- System 및 Update API ---
     
-    def checkUpdate(self):
-        """GitHub 최신 릴리즈 확인 및 플랫폼별 다운로드 URL 추출"""
-        try:
-            repo_url = "https://api.github.com/repos/Dieod1598741/bell/releases/latest"
-            response = requests.get(repo_url, timeout=5)
-            if response.status_code == 200:
-                latest_data = response.json()
-                latest_version = latest_data.get('tag_name')
-                has_update = latest_version != CURRENT_VERSION
-                
-                # 플랫폼별 자산(asset) 찾기
-                target_extension = '.dmg' if sys.platform == 'darwin' else '.exe'
-                download_url = latest_data.get('html_url') # 폴백: 웹페이지
-                
-                assets = latest_data.get('assets', [])
-                for asset in assets:
-                    name = asset.get('name', '').lower()
-                    if name.endswith(target_extension):
-                        download_url = asset.get('browser_download_url')
-                        print(f"[API] 플랫폼에 맞는 자산 발견: {name}")
-                        break
-                
-                return {
-                    "success": True,
-                    "hasUpdate": has_update,
-                    "currentVersion": CURRENT_VERSION,
-                    "latestVersion": latest_version,
-                    "downloadUrl": download_url,
-                    "body": latest_data.get('body')
-                }
-            return {"success": False, "error": f"GitHub API 오류: {response.status_code}"}
-        except Exception as e:
-            print(f"[API] checkUpdate 오류: {e}")
-            return {"success": False, "error": str(e)}
-
-    def openUrl(self, url):
-        """시스템 브라우저로 URL 열기"""
-        try:
-            if url:
-                webbrowser.open(url)
-                return {"success": True}
-            return {"success": False, "error": "URL이 없습니다."}
-        except Exception as e:
-            print(f"[API] openUrl 오류: {e}")
-            return {"success": False, "error": str(e)}
-
 
 
     def _init_activity_monitor(self):

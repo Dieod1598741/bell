@@ -143,45 +143,7 @@ class UserInfoManager:
             print(f"[UserInfo] 로그인 설정 삭제 실패: {e}")
             return False
     
-    def update_last_access_time(self) -> bool:
-        """마지막 접근 시간 업데이트 (하트비트)"""
-        try:
-            current_time = datetime.now().isoformat()
-            with open(self._last_access_file, 'w', encoding='utf-8') as f:
-                f.write(current_time)
-            return True
-        except Exception as e:
-            print(f"[UserInfo] 마지막 접근 시간 업데이트 실패: {e}")
-            return False
-    
-    def get_last_access_time(self) -> Optional[datetime]:
-        """마지막 접근 시간 조회"""
-        try:
-            if not self._last_access_file.exists():
-                return None
-            
-            with open(self._last_access_file, 'r', encoding='utf-8') as f:
-                time_str = f.read().strip()
-                if time_str:
-                    return datetime.fromisoformat(time_str)
-            return None
-        except Exception as e:
-            print(f"[UserInfo] 마지막 접근 시간 조회 실패: {e}")
-            return None
-    
-    def should_set_offline(self, timeout_minutes: int = 5) -> bool:
-        """마지막 접근 시간을 기준으로 오프라인으로 설정해야 하는지 확인"""
-        try:
-            last_access = self.get_last_access_time()
-            if not last_access:
-                return True  # 접근 시간이 없으면 오프라인으로 처리
-            
-            elapsed = (datetime.now() - last_access).total_seconds() / 60
-            return elapsed > timeout_minutes
-        except Exception as e:
-            print(f"[UserInfo] 오프라인 확인 실패: {e}")
-            return True
-    
+
     def update_last_access_time(self) -> bool:
         """마지막 접근 시간 업데이트"""
         try:
