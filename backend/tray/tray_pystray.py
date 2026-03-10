@@ -1,4 +1,6 @@
+import os
 import sys
+import threading
 from PIL import Image, ImageDraw, ImageFont
 import pystray
 from pystray import MenuItem as item

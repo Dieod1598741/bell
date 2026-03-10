@@ -36,7 +36,30 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.13"
+CURRENT_VERSION = "v1.1.16"
+
+def to_camel(snake_str):
+    """snake_case를 camelCase로 변환"""
+    components = snake_str.split('_')
+    return components[0] + ''.join(x.title() for x in components[1:])
+
+def transform_user_data(user):
+    """DB의 snake_case 사용자 데이터를 프론트엔드가 기대하는 camelCase로 매핑/보강"""
+    if not user: return user
+    
+    # 1. snake_case -> camelCase 자동 변환
+    new_user = {}
+    for k, v in user.items():
+        new_user[to_camel(k)] = v
+        # 원본 snake_case도 유지 (호환성)
+        new_user[k] = v
+    
+    # 2. 명시적 가상 필드 보강 (프론트엔드 레거시 대응)
+    if 'nick_nm' in user: new_user['nickNm'] = user['nick_nm']
+    if 'user_status' in user: new_user['userStatus'] = user['user_status']
+    if 'connection_status' in user: new_user['connectionStatus'] = user['connection_status']
+    
+    return new_user
 
 
 class API:
@@ -352,7 +375,7 @@ class API:
             
             db_user = self.db_manager.get_user(user_id)
             if db_user:
-                return {"success": True, "data": db_user}
+                return {"success": True, "data": transform_user_data(db_user)}
             else:
                 return {"success": False, "message": "사용자를 찾을 수 없습니다."}
         except Exception as e:
@@ -469,7 +492,10 @@ class API:
             if error:
                 print(f"[API] getAllUsers DB 오류: {error}")
                 return {"success": False, "error": f"사용자 목록 조회 실패: {error}"}
-            return {"success": True, "data": result or []}
+            
+            # 모든 유저 정보 변환
+            transformed = [transform_user_data(u) for u in (result or [])]
+            return {"success": True, "data": transformed}
         except Exception as e:
             print(f"[API] getAllUsers 예외 오류: {e}")
             return {"success": False, "error": str(e)}
