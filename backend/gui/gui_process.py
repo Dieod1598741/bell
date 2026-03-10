@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.16"
+CURRENT_VERSION = "v1.1.17"
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -47,17 +47,21 @@ def transform_user_data(user):
     """DB의 snake_case 사용자 데이터를 프론트엔드가 기대하는 camelCase로 매핑/보강"""
     if not user: return user
     
-    # 1. snake_case -> camelCase 자동 변환
+    # 기본 변환
     new_user = {}
     for k, v in user.items():
-        new_user[to_camel(k)] = v
-        # 원본 snake_case도 유지 (호환성)
-        new_user[k] = v
+        camel_k = to_camel(k)
+        new_user[camel_k] = v
+        new_user[k] = v # 원본 유지
     
-    # 2. 명시적 가상 필드 보강 (프론트엔드 레거시 대응)
-    if 'nick_nm' in user: new_user['nickNm'] = user['nick_nm']
-    if 'user_status' in user: new_user['userStatus'] = user['user_status']
-    if 'connection_status' in user: new_user['connectionStatus'] = user['connection_status']
+    # 필수 필드 보강 (하나라도 누락되면 프론트엔드에서 필터링될 수 있음)
+    new_user['nickNm'] = user.get('nick_nm') or user.get('name') or user.get('id') or '사용자'
+    new_user['name'] = user.get('name') or new_user['nickNm']
+    new_user['userStatus'] = user.get('user_status') or 'offline'
+    new_user['connectionStatus'] = user.get('connection_status') or 'offline'
+    new_user['permission'] = user.get('permission') or 'pending'
+    new_user['del_yn'] = user.get('del_yn') or 'n'
+    new_user['avatar'] = user.get('avatar') or '/icon/icon1.svg'
     
     return new_user
 

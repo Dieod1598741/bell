@@ -70,6 +70,7 @@ const filteredUsers = computed(() => {
 onMounted(() => {
   const currentUserId = userStore.user?.id
   unwatchUsers = watchUsers((users) => {
+    console.log('[UserListView] received users:', users.length);
     allUsers.value = users
   }, currentUserId)
   

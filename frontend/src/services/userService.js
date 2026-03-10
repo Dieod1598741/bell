@@ -28,12 +28,16 @@ export function watchUsers(callback, currentUserId = null) {
   const loadAndFilterUsers = async () => {
     const result = await backendService.getAllUsers()
     if (result.success) {
+      console.log('[userService] Loaded users from backend:', result.data.length);
       const users = result.data.filter(u => {
-        if (u.id === 'admin') return false
-        if (currentUserId && u.id === currentUserId) return false
-        return u.del_yn === 'n' && (u.permission === 'approved' || u.permission === 'admin')
-      })
-      callback(users)
+        if (u.id === 'admin') return false;
+        if (currentUserId && u.id === currentUserId) return false;
+        const isVisible = u.del_yn === 'n' && (u.permission === 'approved' || u.permission === 'admin');
+        if (!isVisible) console.log('[userService] Filtering out user:', u.id, u.permission, u.del_yn);
+        return isVisible;
+      });
+      console.log('[userService] Filtered users:', users.length);
+      callback(users);
     }
   }
 

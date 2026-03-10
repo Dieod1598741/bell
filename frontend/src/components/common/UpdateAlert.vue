@@ -42,11 +42,16 @@ const savedFilePath = ref('')
 
 const checkUpdate = async () => {
   try {
+    console.log('[UpdateAlert] Checking for updates...');
     const result = await backendService.checkUpdate()
+    console.log('[UpdateAlert] Check result:', result);
     if (result.success && result.hasUpdate) {
       hasUpdate.value = true
       latestVersion.value = result.latestVersion
       downloadUrl.value = result.downloadUrl
+      console.log('[UpdateAlert] Update found:', latestVersion.value);
+    } else {
+      console.log('[UpdateAlert] No update found or check failed');
     }
   } catch (error) {
     console.error('[UpdateAlert] 업데이트 확인 실패:', error)

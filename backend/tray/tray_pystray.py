@@ -8,21 +8,31 @@ from plyer import notification
 from .tray_base import BaseTrayManager
 
 def resource_path(relative_path):
-    """실행 환경(개발/빌드)에 따른 리소스 절대 경로 반환"""
+    """실행 환경(개발/빌드)에 따른 리소스 절대 경로를 공격적으로 탐색"""
     try:
-        # PyInstaller 빌드 시 _MEIPASS 사용
-        base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        # tray 폴더 내부에 있는지 확인
-        possible_paths = [
-            os.path.join(base_path, 'tray', relative_path),
-            os.path.join(base_path, relative_path),
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+        # 1. PyInstaller _MEIPASS (루트)
+        if hasattr(sys, '_MEIPASS'):
+            base_path = sys._MEIPASS
+            paths = [
+                os.path.join(base_path, 'backend', 'tray', relative_path),
+                os.path.join(base_path, 'tray', relative_path),
+                os.path.join(base_path, relative_path)
+            ]
+            for p in paths:
+                if os.path.exists(p): return p
+
+        # 2. 현재 파일 기준 (개발 환경)
+        curr_dir = os.path.dirname(os.path.abspath(__file__))
+        paths = [
+            os.path.join(curr_dir, relative_path),
+            os.path.join(os.path.dirname(curr_dir), 'tray', relative_path),
+            os.path.join(os.path.dirname(os.path.dirname(curr_dir)), 'backend', 'tray', relative_path)
         ]
-        for path in possible_paths:
-            if os.path.exists(path):
-                return path
-    except Exception:
-        pass
+        for p in paths:
+            if os.path.exists(p): return p
+            
+    except Exception as e:
+        print(f"[Tray] resource_path error: {e}")
     return relative_path
 
 class PystrayTrayManager(BaseTrayManager):

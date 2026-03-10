@@ -13,6 +13,7 @@ added_files = [
     ('backend/gui/web', 'backend/gui/web'),
     ('backend/tray/icon.icns', 'backend/tray'),
     ('backend/tray/bell_icon.png', 'backend/tray'),
+    ('backend/tray/bell_icon.png', '.'), # 루트에도 추가 (탐색 용이성)
     ('backend/.env', 'backend'), # 로컬 테스트용 .env 포함
 ]
 
