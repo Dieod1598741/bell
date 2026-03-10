@@ -21,7 +21,7 @@ class SSEManager:
             self._initialized = True
             print("[SSEManager] Initialized singleton")
 
-
+    def add_client(self):
         q = queue.Queue()
         with self.lock:
             self.clients.append(q)
@@ -54,11 +54,12 @@ class SSEManager:
                 except ValueError:
                     pass
 
-        # 2. pywebview evaluate_js 직접 전송 (가장 확실한 방법)
-        try:
-            import webview
-            payload_json = json.dumps({"type": event_type, "data": data})
-            js = f"""
+        # 2. pywebview evaluate_js 직접 전송 (백그라운드 스레드에서 비동기 실행)
+        def _push_to_webview():
+            try:
+                import webview
+                payload_json = json.dumps({"type": event_type, "data": data})
+                js = f"""
 (function() {{
     try {{
         var ev = new CustomEvent('bell-sse', {{detail: {payload_json}}});
@@ -66,13 +67,15 @@ class SSEManager:
     }} catch(e) {{}}
 }})();
 """
-            for win in webview.windows:
-                try:
-                    win.evaluate_js(js)
-                except Exception:
-                    pass
-        except Exception as e:
-            pass  # webview 미사용 환경에서는 무시
+                for win in (webview.windows or []):
+                    try:
+                        win.evaluate_js(js)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        threading.Thread(target=_push_to_webview, daemon=True).start()
 
     def publish_update(self, table, action, record=None):
         """데이터 변경 이벤트 브로드캐스트"""
