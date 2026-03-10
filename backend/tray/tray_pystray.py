@@ -1,10 +1,27 @@
-import os
-import threading
+import sys
 from PIL import Image, ImageDraw, ImageFont
 import pystray
 from pystray import MenuItem as item
 from plyer import notification
 from .tray_base import BaseTrayManager
+
+def resource_path(relative_path):
+    """실행 환경(개발/빌드)에 따른 리소스 절대 경로 반환"""
+    try:
+        # PyInstaller 빌드 시 _MEIPASS 사용
+        base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        # tray 폴더 내부에 있는지 확인
+        possible_paths = [
+            os.path.join(base_path, 'tray', relative_path),
+            os.path.join(base_path, relative_path),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                return path
+    except Exception:
+        pass
+    return relative_path
 
 class PystrayTrayManager(BaseTrayManager):
     """pystray와 PIL을 사용한 단일화된 트레이 관리자"""
@@ -16,9 +33,15 @@ class PystrayTrayManager(BaseTrayManager):
         self.current_status = 'offline'
         self.unread_count = 0
         
-        # 기본 아이콘 경로 설정
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
-        self.icon_path = os.path.join(self.base_dir, 'bell_icon.png')
+        # 아이콘 검색 (우선순위에 따라)
+        self.icon_path = None
+        for icon_name in ['bell_icon.png', 'bell_sys.png', 'icon.png']:
+            path = resource_path(icon_name)
+            if os.path.exists(path):
+                self.icon_path = path
+                break
+        
+        print(f"[Pystray] 초기화 완료. 아이콘 경로: {self.icon_path}")
         
     def _create_image(self, status='offline', count=0):
         """상태와 숫자가 반영된 동적 아이콘 생성"""
