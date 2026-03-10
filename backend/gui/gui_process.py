@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.58"
+CURRENT_VERSION = "v1.1.59"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -506,6 +506,7 @@ class API:
                 self.sse_manager.publish_update("users", "update", {"id": user_data.get('id'), "user_status": status})
             
             # 3. 모듈 레벨 상태 업데이트 (SSE 신규 연결 시 동기화용)
+            global _current_tray_status
             _current_tray_status = status
             
             # 4. 트레이 아이콘 즉시 반영
@@ -767,79 +768,92 @@ class API:
 
             if system == "Darwin":
                 # ── macOS 자동 업데이트 ────────────────────────────────
-                # 현재 실행 중인 Bell.app 경로 감지 (frozen: 번들 내부, 아니면 /Applications)
                 if getattr(sys, 'frozen', False):
-                    # PyInstaller: sys.executable → .../Bell.app/Contents/MacOS/Bell
                     import pathlib
-                    current_app = str(pathlib.Path(sys.executable).parents[2])  # .app까지
+                    current_app = str(pathlib.Path(sys.executable).parents[2])  # Bell.app
                 else:
                     current_app = "/Applications/Bell.app"
-                
+
                 dst_app = current_app
-                mount_pt = "/Volumes/Bell_Update"
+                # 고정 마운트 포인트 대신 hdiutil이 자동 선택하게 함 (plist 파싱)
                 parent_pid = os.getppid()
                 log_file = "/tmp/bell_update.log"
-                
+                data_dir = str(DATA_DIR)
+
                 script = f"""#!/bin/bash
 exec > "{log_file}" 2>&1
 echo "[update] started at $(date)"
 sleep 2
 
-# 기존 마운트 해제
-hdiutil detach "{mount_pt}" 2>/dev/null || true
+# ── 기존 마운트 정리 ──────────────────────────────────────────
+hdiutil detach "/Volumes/Bell_Update" 2>/dev/null || true
 
+# ── DMG 마운트 (창 없이, 자동 열기 없이) ─────────────────────
 echo "[update] attaching DMG: {file_path}"
-if ! hdiutil attach "{file_path}" -mountpoint "{mount_pt}" -nobrowse -noverify -quiet; then
-    echo "[update] hdiutil attach failed, trying without -nobrowse"
-    hdiutil attach "{file_path}" -noverify || {{
-        echo "[update] mount failed completely, opening DMG manually"
-        open "{file_path}"
+MOUNT_OUTPUT=$(hdiutil attach "{file_path}" -nobrowse -noverify -noautoopen -plist 2>/dev/null)
+if [ $? -ne 0 ]; then
+    echo "[update] 1st attach failed, retrying without -nobrowse"
+    MOUNT_OUTPUT=$(hdiutil attach "{file_path}" -noverify -noautoopen -plist 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        echo "[update] mount failed completely"
+        rm -f "{data_dir}/pending_update.txt"
         exit 1
-    }}
-    # 마운트됐지만 경로 다를 수 있으므로 find
-    mount_pt=$(find /Volumes -maxdepth 2 -name "Bell.app" 2>/dev/null | head -1 | xargs -I{{}} dirname {{}})
+    fi
 fi
 
-echo "[update] mount_pt: $mount_pt"
-ls -la "$mount_pt/" 2>/dev/null || echo "[update] cannot list mount_pt"
+# plist 출력에서 마운트 포인트 파싱
+MOUNT_PT=$(echo "$MOUNT_OUTPUT" | python3 -c "
+import sys, plistlib
+data = plistlib.loads(sys.stdin.buffer.read())
+for e in data.get('system-entities', []):
+    mp = e.get('mount-point', '')
+    if mp and mp != '/':
+        print(mp)
+        break
+" 2>/dev/null)
 
-# Bell.app 위치 찾기 (볼륨 루트 또는 하위)
-src_app=$(find "$mount_pt" -maxdepth 2 -name "Bell.app" -type d 2>/dev/null | head -1)
-echo "[update] src_app: $src_app"
+if [ -z "$MOUNT_PT" ]; then
+    # fallback: /Volumes 에서 Bell 관련 볼륨 찾기
+    MOUNT_PT=$(ls /Volumes | grep -i [Bb]ell | head -1)
+    MOUNT_PT="/Volumes/$MOUNT_PT"
+fi
 
-if [ -d "$src_app" ]; then
-    echo "[update] copying $src_app -> {dst_app}"
+echo "[update] mount_pt=$MOUNT_PT"
+
+# ── Bell.app 찾기 ─────────────────────────────────────────────
+SRC_APP=$(find "$MOUNT_PT" -maxdepth 2 -name "Bell.app" -type d 2>/dev/null | head -1)
+echo "[update] src_app=$SRC_APP"
+
+if [ -d "$SRC_APP" ]; then
+    echo "[update] copying $SRC_APP -> {dst_app}"
     rm -rf "{dst_app}"
-    # cp 실패 시 rsync로 재시도
-    if ! cp -R "$src_app" "{dst_app}" 2>/dev/null; then
+    if ! cp -R "$SRC_APP" "{dst_app}" 2>/dev/null; then
         echo "[update] cp failed, trying rsync"
-        rsync -a --delete "$src_app/" "{dst_app}/" || {{
+        rsync -a --delete "$SRC_APP/" "{dst_app}/" || {{
             echo "[update] rsync also failed"
-            hdiutil detach "$mount_pt" -quiet 2>/dev/null || true
-            rm -f "{DATA_DIR}/pending_update.txt"
-            open "{file_path}"
+            hdiutil detach "$MOUNT_PT" -force -quiet 2>/dev/null || true
+            rm -f "{data_dir}/pending_update.txt"
             exit 1
         }}
     fi
     echo "[update] copy done"
-    hdiutil detach "$mount_pt" -quiet 2>/dev/null || true
+
+    # ── DMG 언마운트 ──────────────────────────────────────────
+    hdiutil detach "$MOUNT_PT" -force -quiet 2>/dev/null || true
     rm -f "{file_path}"
-    # 설치 완료 - pending_update.txt 삭제 (앱 재시작 시 배너 재표시 방지)
-    rm -f "{DATA_DIR}/pending_update.txt"
+    rm -f "{data_dir}/pending_update.txt"
 
-    # 새 인스턴스 실행
-    echo "[update] opening {dst_app}"
+    # ── 새 앱 실행 → 구 프로세스 종료 ────────────────────────
+    echo "[update] launching {dst_app}"
     open -n "{dst_app}"
-    sleep 4
-
-    # 기존 트레이 프로세스 종료
+    sleep 3
     echo "[update] killing old process {parent_pid}"
     kill {parent_pid} 2>/dev/null || true
 else
-    echo "[update] Bell.app not found in DMG, opening DMG manually"
-    hdiutil detach "$mount_pt" -quiet 2>/dev/null || true
-    rm -f "{DATA_DIR}/pending_update.txt"
-    open "{file_path}"
+    echo "[update] Bell.app not found in DMG"
+    hdiutil detach "$MOUNT_PT" -force -quiet 2>/dev/null || true
+    rm -f "{data_dir}/pending_update.txt"
+    exit 1
 fi
 echo "[update] done"
 """
@@ -855,7 +869,6 @@ echo "[update] done"
                                   close_fds=True,
                                   start_new_session=True)
 
-                # gui_process 자신만 종료 (main.py는 shell script가 처리)
                 def quit_gui():
                     os._exit(0)
 

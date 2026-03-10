@@ -196,22 +196,17 @@ class BellApp:
         """GUI 프로세스의 출력을 읽어 포트 번호 확인"""
         import threading
         def read_output():
-            sse_started = False
             for line in iter(process.stdout.readline, ''):
                 print(f"[GUI] {line.strip()}")
                 if "BELL_PORT:" in line:
                     try:
                         port = int(line.split("BELL_PORT:")[1].strip())
-                        if not sse_started:
-                            self._start_sse_listener(port)
-                            sse_started = True
-                        else:
-                            # GUI 재시작: 새 포트로 SSE URL 업데이트
-                            self._update_sse_port(port)
+                        # 항상 새 포트로 SSE 리스너 재시작 (GUI 재시작 대응)
+                        self._start_sse_listener(port)
                     except Exception:
                         pass
             process.stdout.close()
-            
+
         threading.Thread(target=read_output, daemon=True).start()
     
     def quit(self):
