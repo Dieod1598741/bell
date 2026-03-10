@@ -9,12 +9,12 @@ export const useUserStore = defineStore('user', () => {
   const setUser = async (userData) => {
     const userId = userData?.id
     let finalUserData = userData
-    
+
     if (userId) {
       try {
         const { getUser } = await import('@/services/userService')
         const firestoreUser = await getUser(userId)
-        
+
         if (firestoreUser) {
           finalUserData = {
             ...userData,
@@ -26,13 +26,13 @@ export const useUserStore = defineStore('user', () => {
         console.error('[userStore] Firestore 정보 로드 실패:', e)
       }
     }
-    
+
     user.value = finalUserData
     isLoggedIn.value = true
     if (finalUserData.user_status) {
       userStatus.value = finalUserData.user_status
     }
-    
+
     if (window.pywebview?.api?.saveUserInfo) {
       await window.pywebview.api.saveUserInfo(finalUserData)
       if (finalUserData.user_status) {
@@ -46,7 +46,7 @@ export const useUserStore = defineStore('user', () => {
     if (user.value) {
       user.value.user_status = status
     }
-    
+
     const userId = user.value?.id
     if (userId) {
       try {
@@ -70,7 +70,7 @@ export const useUserStore = defineStore('user', () => {
 
   const logout = async () => {
     const currentUserId = user.value?.id
-    
+
     if (currentUserId) {
       try {
         const { updateUserStatus } = await import('@/services/statusService')
@@ -79,7 +79,7 @@ export const useUserStore = defineStore('user', () => {
         console.error('[userStore] 상태 업데이트 실패:', error)
       }
     }
-    
+
     if (window.pywebview?.api) {
       if (window.pywebview.api.deleteUserInfo) {
         await window.pywebview.api.deleteUserInfo()
@@ -93,7 +93,7 @@ export const useUserStore = defineStore('user', () => {
         }
       }
     }
-    
+
     user.value = null
     isLoggedIn.value = false
     userStatus.value = 'offline'
@@ -104,15 +104,15 @@ export const useUserStore = defineStore('user', () => {
       try {
         const userResult = await window.pywebview.api.getUserInfo()
         const statusResult = await window.pywebview.api.getUserStatus()
-        
+
         if (userResult?.success && userResult?.data) {
           let userData = userResult.data
           const userId = userData.id
-          
+
           try {
             const { getUser } = await import('@/services/userService')
             const firestoreUser = await getUser(userId)
-            
+
             if (firestoreUser) {
               userData = {
                 ...userData,
@@ -123,10 +123,10 @@ export const useUserStore = defineStore('user', () => {
           } catch (e) {
             console.error('[userStore] Firestore 정보 로드 실패:', e)
           }
-          
+
           user.value = userData
           isLoggedIn.value = true
-          
+
           if (statusResult?.success && statusResult?.data) {
             userStatus.value = statusResult.data
             user.value.user_status = statusResult.data
@@ -145,26 +145,26 @@ export const useUserStore = defineStore('user', () => {
     if (!currentUserId) {
       return { success: false, error: '사용자 ID가 없습니다' }
     }
-    
+
     try {
       const { updateUserProfile } = await import('@/services/userService')
       const firestoreResult = await updateUserProfile(currentUserId, userData)
-      
+
       if (!firestoreResult.success) {
         return { success: false, error: firestoreResult.error }
       }
     } catch (e) {
       return { success: false, error: e.message }
     }
-    
+
     if (window.pywebview?.api?.updateUserInfo) {
       await window.pywebview.api.updateUserInfo(userData)
     }
-    
+
     try {
       const { getUser } = await import('@/services/userService')
       const latestUser = await getUser(currentUserId)
-      
+
       if (latestUser) {
         user.value = { ...user.value, ...latestUser }
       } else {
@@ -173,12 +173,13 @@ export const useUserStore = defineStore('user', () => {
     } catch (e) {
       user.value = { ...user.value, ...userData }
     }
-    
+
     return { success: true }
   }
 
-  // 초기화 시 저장된 사용자 정보 로드
-  loadUser()
+  // ⚠️ 여기서 loadUser()를 자동 호출하지 않음.
+  // pywebview 브리지가 준비되기 전에 API를 호출하면 race condition 발생.
+  // loadUser()는 main.js의 initApp()에서 브리지 준비 후 명시적으로 호출됨.
 
   return {
     user,

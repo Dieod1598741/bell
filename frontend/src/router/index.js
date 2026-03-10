@@ -74,9 +74,9 @@ router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
   const isLoggedIn = userStore.isLoggedIn
   const user = userStore.user
-  
+
   console.log('[Router] 네비게이션 가드:', to.path, 'isLoggedIn:', isLoggedIn, 'user:', user?.id)
-  
+
   // 로그인 필요 페이지인 경우
   if (to.meta.requiresAuth && !isLoggedIn) {
     console.log('[Router] 로그인 필요 - /login으로 리다이렉트')
@@ -85,7 +85,7 @@ router.beforeEach(async (to, from, next) => {
     // 이미 로그인된 경우 메인으로
     console.log('[Router] 이미 로그인됨 - /main으로 리다이렉트')
     next('/main')
-  } else if (to.meta.requiresAdmin && (!user || user.permission !== 'admin')) {
+  } else if (to.meta.requiresAdmin && (!user || user.permission?.toLowerCase() !== 'admin')) {
     // 관리자 권한 필요 페이지인 경우
     console.log('[Router] 관리자 권한 필요 - /main으로 리다이렉트')
     next('/main')

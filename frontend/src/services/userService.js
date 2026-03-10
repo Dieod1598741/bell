@@ -32,7 +32,6 @@ const hydrateUser = (u, currentUserId = null) => {
     avatar: u.avatar || '/icon/icon1.svg',
     userStatus: u.userStatus || 'offline',
     connectionStatus: u.connectionStatus || 'offline',
-    permission: u.permission || 'approved',
     del_yn: u.del_yn || 'n',
     ...u
   }
