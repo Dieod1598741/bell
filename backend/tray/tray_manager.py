@@ -8,11 +8,13 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 from platform_detector import PlatformDetector
 
-def create_tray_manager(on_show_window=None, on_quit=None, on_show_status=None, machine_id=None, app_version='v0.0.0'):
+def create_tray_manager(on_show_window=None, on_quit=None, on_show_status=None, machine_id=None, app_version='v0.0.0', initial_status='offline'):
     """pystray 기반 트레이 관리자 생성 (단일화)"""
     try:
         from .tray_pystray import PystrayTrayManager
-        return PystrayTrayManager(on_show_window, on_quit, on_show_status, machine_id, app_version)
+        mgr = PystrayTrayManager(on_show_window, on_quit, on_show_status, machine_id, app_version)
+        mgr.current_status = initial_status  # 저장된 상태 즉시 적용
+        return mgr
     except Exception as e:
         print(f"[TrayManager] Pystray 초기화 실패, 기본값으로 폴백: {e}")
         from .tray_base import BaseTrayManager
@@ -22,8 +24,8 @@ def create_tray_manager(on_show_window=None, on_quit=None, on_show_status=None, 
 class TrayManager:
     """시스템 트레이 관리자 (팩토리)"""
     
-    def __init__(self, on_show_window=None, on_quit=None, on_show_status=None, machine_id=None, app_version='v0.0.0'):
-        self._impl = create_tray_manager(on_show_window, on_quit, on_show_status, machine_id, app_version)
+    def __init__(self, on_show_window=None, on_quit=None, on_show_status=None, machine_id=None, app_version='v0.0.0', initial_status='offline'):
+        self._impl = create_tray_manager(on_show_window, on_quit, on_show_status, machine_id, app_version, initial_status)
     
     def setup(self, current_status='offline'):
         """트레이 아이콘 설정"""

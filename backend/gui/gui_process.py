@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.48"
+CURRENT_VERSION = "v1.1.49"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -250,34 +250,6 @@ class API:
             print(f"[API] downloadUpdate 오류: {e}")
             return {"success": False, "error": str(e)}
 
-    def runInstaller(self, file_path):
-        """다운로드된 설치 파일 실행 및 앱 종료"""
-        try:
-            if not file_path or not os.path.exists(file_path):
-                return {"success": False, "error": "파일을 찾을 수 없습니다."}
-            
-            print(f"[API] 설치 프로그램 실행 시도: {file_path}")
-            
-            # 플랫폼별 실행 방식
-            if sys.platform == 'darwin':  # macOS
-                # .dmg 파일 마운트 및 열기
-                os.system(f"open '{file_path}'")
-            elif sys.platform == 'win32':  # Windows
-                # .exe 설치 파일 실행
-                os.startfile(file_path)
-            
-            # 프로그램 종료 (사용자가 설치를 진행할 수 있도록)
-            # 1초 뒤에 종료 (API 응답을 프론트가 받을 시간을 줌)
-            def quit_app():
-                time.sleep(1)
-                print("[API] 업데이트를 위해 종료합니다.")
-                os._exit(0)
-            
-            Thread(target=quit_app).start()
-            return {"success": True}
-        except Exception as e:
-            print(f"[API] runInstaller 오류: {e}")
-            return {"success": False, "error": str(e)}
 
     def _init_activity_monitor(self):
         """활동 모니터 초기화 (초기에는 시작하지 않음)"""
@@ -872,21 +844,30 @@ class API:
                 dst_app = "/Applications/Bell.app"
                 mount_pt = "/Volumes/Bell_Update"
                 
+                parent_pid = os.getppid()
                 script = f"""#!/bin/bash
 sleep 2
 hdiutil detach "{mount_pt}" 2>/dev/null
-hdiutil attach "{file_path}" -mountpoint "{mount_pt}" -nobrowse -quiet
-if [ -d "{mount_pt}/Bell.app" ]; then
-    rm -rf "{dst_app}"
-    cp -R "{mount_pt}/Bell.app" "{dst_app}"
-    hdiutil detach "{mount_pt}" -quiet 2>/dev/null
-    rm -f "{file_path}"
-    # 새 인스턴스를 강제로 실행 (-n 플래그: 이미 실행 중이어도 새 인스턴스 열기)
-    open -n "{dst_app}"
-    # 새 앱이 트레이까지 초기화할 시간을 충분히 줌 (3초)
-    sleep 3
-    # 기존 프로세스 종료 (새 앱이 이미 트레이를 가져간 상태)
-    kill {os.getppid()} 2>/dev/null || true
+if hdiutil attach "{file_path}" -mountpoint "{mount_pt}" -nobrowse -quiet; then
+    if [ -d "{mount_pt}/Bell.app" ]; then
+        rm -rf "{dst_app}"
+        cp -R "{mount_pt}/Bell.app" "{dst_app}"
+        hdiutil detach "{mount_pt}" -quiet 2>/dev/null
+        rm -f "{file_path}"
+        # 새 인스턴스 실행 (-n: 이미 실행 중이어도 새 인스턴스)
+        open -n "{dst_app}"
+        # 새 앱이 기동할 시간을 충분히 줌 (4초)
+        sleep 4
+        # 기존 프로세스 종료
+        kill {parent_pid} 2>/dev/null || true
+    else
+        # Bell.app 없으면 DMG만 열어 사용자가 수동 설치
+        hdiutil detach "{mount_pt}" -quiet 2>/dev/null
+        open "{file_path}"
+    fi
+else
+    # 마운트 실패 - DMG를 직접 열기
+    open "{file_path}"
 fi
 rm -f "$0"
 """
