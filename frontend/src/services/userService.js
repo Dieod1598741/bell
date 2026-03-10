@@ -1,25 +1,15 @@
-import { backendService } from './backendService'
-import { sseClient } from './sseClient'
-
-export async function hashPassword(password) {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
-export async function getUser(userId) {
-  try {
-    if (!userId) return null
-    const result = await backendService.getUserById(userId)
-    if (result.success && result.data) {
-      return result.data
-    }
-    return null
-  } catch (error) {
-    console.error('[userService] 사용자 조회 실패:', error)
-    throw error
+// 데이터 보강 공통 함수
+const hydrateUser = (u, currentUserId = null) => {
+  return {
+    id: u.id || 'unknown',
+    name: u.name || u.nickNm || u.id || '사용자',
+    nickNm: u.nickNm || u.name || u.id || '사용자',
+    avatar: u.avatar || '/icon/icon1.svg',
+    userStatus: u.userStatus || 'offline',
+    connectionStatus: u.connectionStatus || 'offline',
+    permission: u.permission || 'approved',
+    del_yn: u.del_yn || 'n',
+    ...u
   }
 }
 
@@ -28,15 +18,15 @@ export function watchUsers(callback, currentUserId = null) {
   const loadAndFilterUsers = async () => {
     const result = await backendService.getAllUsers()
     if (result.success) {
-      console.log('[userService] Loaded users from backend:', result.data.length);
-      const users = result.data.filter(u => {
-        if (u.id === 'admin') return false;
-        if (currentUserId && u.id === currentUserId) return false;
-        const isVisible = u.del_yn === 'n' && (u.permission === 'approved' || u.permission === 'admin');
-        if (!isVisible) console.log('[userService] Filtering out user:', u.id, u.permission, u.del_yn);
-        return isVisible;
-      });
-      console.log('[userService] Filtered users:', users.length);
+      console.log('[userService] watchUsers Raw:', result.data?.length);
+      const users = (result.data || []).map(u => hydrateUser(u, currentUserId))
+        .filter(u => {
+          if (u.id === 'admin') return false;
+          if (currentUserId && u.id === currentUserId) return false;
+          // 삭제되지 않은 모든 유저를 일단 리스트에 노출 (Relaxed Filter)
+          return u.del_yn !== 'y';
+        });
+      console.log('[userService] watchUsers Result:', users.length);
       callback(users);
     }
   }
@@ -50,7 +40,6 @@ export function watchUsers(callback, currentUserId = null) {
     }
   })
 
-  // SSE 업데이트 감시 (구독 취소 함수 반환)
   return unsubscribe
 }
 
@@ -58,7 +47,9 @@ export function watchAllUsers(callback) {
   const loadUsers = async () => {
     const result = await backendService.getAllUsers()
     if (result.success) {
-      callback(result.data.filter(u => u.del_yn !== 'y'))
+      const users = (result.data || []).map(u => hydrateUser(u))
+        .filter(u => u.del_yn !== 'y');
+      callback(users)
     }
   }
 
@@ -107,7 +98,7 @@ export async function checkUserIdExists(userId) {
   try {
     const users = await backendService.getAllUsers()
     if (users.success) {
-      const exists = users.data.some(u => u.id === userId.trim())
+      const exists = (users.data || []).some(u => u.id === userId.trim())
       return { exists }
     }
     return { exists: false }
@@ -122,7 +113,7 @@ export async function checkNicknameExists(nickname) {
     const users = await backendService.getAllUsers()
     if (users.success) {
       const trimmedNickname = nickname.trim().toLowerCase()
-      const exists = users.data.some(u => (u.nickNm || '').trim().toLowerCase() === trimmedNickname)
+      const exists = (users.data || []).some(u => (u.nickNm || '').trim().toLowerCase() === trimmedNickname)
       return { exists }
     }
     return { exists: false }
@@ -136,10 +127,11 @@ export async function loadUsers(pageSize = 20, lastDoc = null) {
   try {
     const result = await backendService.getAllUsers()
     if (result.success) {
-      const allUsers = result.data.filter(u => {
-        if (u.id === 'admin') return false
-        return u.del_yn === 'n' && (u.permission === 'approved' || u.permission === 'admin')
-      })
+      const allUsers = (result.data || []).map(u => hydrateUser(u))
+        .filter(u => {
+          if (u.id === 'admin') return false
+          return u.del_yn !== 'y'
+        })
 
       const startIndex = lastDoc ? allUsers.findIndex(u => u.id === lastDoc.id) + 1 : 0
       const users = allUsers.slice(startIndex, startIndex + pageSize)
@@ -160,7 +152,8 @@ export async function loadPendingUsers(pageSize = 20, lastDoc = null) {
   try {
     const result = await backendService.getAllUsers()
     if (result.success) {
-      const allUsers = result.data.filter(u => u.del_yn === 'n' && u.permission === 'pending')
+      const allUsers = (result.data || []).map(u => hydrateUser(u))
+        .filter(u => u.del_yn !== 'y' && u.permission === 'pending')
       const startIndex = lastDoc ? allUsers.findIndex(u => u.id === lastDoc.id) + 1 : 0
       const users = allUsers.slice(startIndex, startIndex + pageSize)
       return {

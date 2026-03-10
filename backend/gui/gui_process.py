@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.18"
+CURRENT_VERSION = "v1.1.19"
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -512,8 +512,13 @@ class API:
                 print(f"[API] getAllUsers DB 오류: {error}")
                 return {"success": False, "error": f"사용자 목록 조회 실패: {error}"}
             
+            raw_count = len(result) if result else 0
+            print(f"[API] getAllUsers Raw Record Count: {raw_count}")
+            
             # 모든 유저 정보 변환
             transformed = [transform_user_data(u) for u in (result or [])]
+            print(f"[API] getAllUsers Transformed Count: {len(transformed)}")
+            
             return {"success": True, "data": transformed}
         except Exception as e:
             print(f"[API] getAllUsers 예외 오류: {e}")
