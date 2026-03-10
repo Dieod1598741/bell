@@ -5,10 +5,23 @@ from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 import threading
 
-# .env 파일 로드 (상대 경로 및 절대 경로 대응)
-current_dir = os.path.dirname(os.path.abspath(__file__))
-env_path = os.path.join(current_dir, '.env')
-load_dotenv(env_path)
+# .env 파일 로드 (PyInstaller frozen 대응)
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    # PyInstaller 빌드 환경
+    base_path = sys._MEIPASS
+    env_path = os.path.join(base_path, 'backend', '.env')
+else:
+    # 일반 파이썬 실행 환경
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    env_path = os.path.join(base_path, '.env')
+
+if os.path.exists(env_path):
+    print(f"[DB] Loading environment from: {env_path}")
+    load_dotenv(env_path)
+else:
+    print(f"[DB] Warning: .env file not found at {env_path}")
+    # 폴백: 현재 작업 디렉토리에서도 시도
+    load_dotenv()
 
 class DBManager:
     """PostgreSQL (Supabase) 관리를 위한 싱글톤 클래스"""
@@ -31,6 +44,9 @@ class DBManager:
         self.user = os.getenv("NEON_DB_USER", "neondb_owner")
         self.password = os.getenv("NEON_DB_PASSWORD")
         self.port = os.getenv("NEON_DB_PORT", "5432")
+        
+        if not self.host or not self.password:
+            print(f"[DB] Error: Database credentials missing in environment (Host: {'OK' if self.host else 'Missing'})")
         
         try:
             self.connection_pool = psycopg2.pool.SimpleConnectionPool(
