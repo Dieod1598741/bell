@@ -38,7 +38,7 @@ const hydrateUser = (u, currentUserId = null) => {
 }
 
 export function watchUsers(callback, currentUserId = null) {
-  // 1. 초기 데이터 로드
+  // 1. 초기 데이터 로드 (브리지 미준비 시 재시도)
   const loadAndFilterUsers = async () => {
     const result = await backendService.getAllUsers()
     if (result.success) {
@@ -53,10 +53,23 @@ export function watchUsers(callback, currentUserId = null) {
         });
       console.log('[userService] watchUsers Result:', users.length);
       callback(users);
+      return true;  // 성공
     }
+    console.warn('[userService] getAllUsers failed:', result.error);
+    return false;
   }
 
-  loadAndFilterUsers()
+  // 최초 로드 - 브리지 준비 안 됐을 수 있으니 최대 6회 재시도
+  const loadWithRetry = async () => {
+    for (let i = 0; i < 6; i++) {
+      const ok = await loadAndFilterUsers();
+      if (ok) return;
+      console.warn(`[userService] watchUsers 재시도 ${i + 1}/6 (1초 후)`);
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    console.error('[userService] watchUsers: 최대 재시도 초과, 유저 목록 로드 실패');
+  };
+  loadWithRetry();
 
   // 2. SSE 업데이트 감시
   const unsubscribe = sseClient.on('DB_UPDATE', (update) => {
@@ -67,6 +80,7 @@ export function watchUsers(callback, currentUserId = null) {
 
   return unsubscribe
 }
+
 
 export function watchAllUsers(callback) {
   const loadUsers = async () => {
