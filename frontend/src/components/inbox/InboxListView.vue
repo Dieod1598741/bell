@@ -26,7 +26,17 @@
 
     <!-- 메시지 목록 -->
     <div ref="listContainer" class="flex-1 overflow-y-auto">
-      <div v-if="filteredInbox.length === 0" class="empty-state">
+      <!-- 로딩 스켈레톤 -->
+      <div v-if="isLoading" class="skeleton-list">
+        <div v-for="i in 5" :key="i" class="skeleton-msg">
+          <div class="skeleton-icon"></div>
+          <div class="skeleton-body">
+            <div class="skeleton-line wide"></div>
+            <div class="skeleton-line narrow"></div>
+          </div>
+        </div>
+      </div>
+      <div v-else-if="filteredInbox.length === 0" class="empty-state">
         <p class="text-gray-400 text-sm">메시지가 없습니다</p>
       </div>
       <MessageInboxItem
@@ -74,6 +84,7 @@ const showReplyLayer = ref(false)
 const selectedItem = ref(null)
 const replyTargetId = ref(null)
 const allInbox = ref([])
+const isLoading = ref(true)
 let unwatchInbox = null
 
 const filters = [
@@ -92,19 +103,19 @@ onMounted(async () => {
     const usersMap = new Map(usersResult.users.map(u => [u.id, u]))
     
     unwatchInbox = watchInbox(currentUserId, (messages) => {
-      // Firestore 데이터를 MessageInboxItem 형식으로 변환
       allInbox.value = messages.map(msg => {
         const sender = usersMap.get(msg.sender_user_id)
         return {
           id: msg.id,
           senderId: msg.sender_user_id,
           senderName: sender ? (sender.nickNm || sender.name) : msg.sender_user_id,
-          message: msg.content || '', // content를 message로 변환
+          message: msg.content || '',
           type: msg.type || 'message',
           time: msg.timestamp?.toDate?.()?.toISOString() || msg.timestamp,
           read: msg.read || false
         }
       })
+      isLoading.value = false
     })
   }
 })
@@ -220,5 +231,15 @@ const openDetail = async (item) => {
   justify-content: center;
   padding: 60px 20px;
 }
+
+/* 스켈레톤 */
+.skeleton-list { padding: 8px 0; }
+.skeleton-msg { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #f3f4f6; }
+.skeleton-icon { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; flex-shrink: 0; }
+.skeleton-body { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.skeleton-line { height: 11px; border-radius: 6px; background: linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+.skeleton-line.wide { width: 60%; }
+.skeleton-line.narrow { width: 80%; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 </style>
 

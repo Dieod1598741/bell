@@ -1,6 +1,17 @@
 <template>
   <div class="chat-room-list">
-    <div v-if="filteredRooms.length === 0" class="empty-state">
+    <!-- 로딩 스켈레톤 -->
+    <div v-if="isLoading" class="skeleton-list">
+      <div v-for="i in 5" :key="i" class="skeleton-item">
+        <div class="skeleton-avatar"></div>
+        <div class="skeleton-content">
+          <div class="skeleton-line wide"></div>
+          <div class="skeleton-line narrow"></div>
+        </div>
+      </div>
+    </div>
+    <!-- 빈 상태: 로드 완료 후에만 표시 -->
+    <div v-else-if="filteredRooms.length === 0" class="empty-state">
       <p class="text-gray-400 text-sm">{{ searchQuery ? '검색 결과가 없습니다' : '최근 대화가 없습니다' }}</p>
     </div>
     <div v-else>
@@ -32,6 +43,7 @@ const props = defineProps({
 const router = useRouter()
 const userStore = useUserStore()
 const chatRooms = ref([])
+const isLoading = ref(true)
 
 let unsubscribeUsers = null
 let unsubscribeChats = null
@@ -80,6 +92,7 @@ const updateChatRooms = (users, messages) => {
   })
   
   chatRooms.value = rooms
+  isLoading.value = false
 }
 
 const loadChatRooms = () => {
@@ -139,5 +152,44 @@ onUnmounted(() => {
   justify-content: center;
   padding: 60px 20px;
 }
-</style>
 
+/* 스켈레톤 로딩 */
+.skeleton-list {
+  padding: 8px 0;
+}
+.skeleton-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+.skeleton-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+  flex-shrink: 0;
+}
+.skeleton-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+.skeleton-line.wide { width: 70%; }
+.skeleton-line.narrow { width: 45%; }
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+</style>

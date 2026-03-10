@@ -12,7 +12,17 @@
     </div>
     
     <div ref="listContainer" class="flex-1 overflow-y-auto">
-      <div v-if="filteredUsers.length === 0" class="empty-state">
+      <!-- 로딩 스켈레톤 -->
+      <div v-if="isLoading" class="skeleton-list">
+        <div v-for="i in 6" :key="i" class="skeleton-item">
+          <div class="skeleton-avatar"></div>
+          <div class="skeleton-content">
+            <div class="skeleton-line wide"></div>
+            <div class="skeleton-line narrow"></div>
+          </div>
+        </div>
+      </div>
+      <div v-else-if="filteredUsers.length === 0" class="empty-state">
         <p class="text-gray-400 text-sm">사용자가 없습니다</p>
       </div>
       <template v-else>
@@ -53,6 +63,7 @@ const userStore = useUserStore()
 const searchQuery = ref('')
 const listContainer = ref(null)
 const allUsers = ref([])
+const isLoading = ref(true)
 let unwatchUsers = null
 
 const filteredUsers = computed(() => {
@@ -72,6 +83,7 @@ onMounted(() => {
   unwatchUsers = watchUsers((users) => {
     console.log('[UserListView] received users:', users.length);
     allUsers.value = users
+    isLoading.value = false
   }, currentUserId)
   
   if (props.selectedUserId) {
@@ -130,6 +142,23 @@ watch(() => props.selectedUserId, () => {
   display: flex;
   flex-direction: column;
 }
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+}
+
+/* 스켈레톤 */
+.skeleton-list { padding: 8px 0; }
+.skeleton-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+.skeleton-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; flex-shrink: 0; }
+.skeleton-content { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.skeleton-line { height: 11px; border-radius: 6px; background: linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+.skeleton-line.wide { width: 65%; }
+.skeleton-line.narrow { width: 40%; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 .search-input :deep(.el-input__wrapper) {
   box-shadow: none;
