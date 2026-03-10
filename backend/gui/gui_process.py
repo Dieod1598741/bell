@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.64"
+CURRENT_VERSION = "v1.1.65"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -799,14 +799,8 @@ class API:
 
             if system == "Darwin":
                 # ── macOS 자동 업데이트 ────────────────────────────────
-                if getattr(sys, 'frozen', False):
-                    import pathlib
-                    current_app = str(pathlib.Path(sys.executable).parents[2])  # Bell.app
-                else:
-                    current_app = "/Applications/Bell.app"
-
-                dst_app = current_app
-                # 고정 마운트 포인트 대신 hdiutil이 자동 선택하게 함 (plist 파싱)
+                # 대상은 항상 /Applications/Bell.app (RO 마운트 볼륨 방지)
+                dst_app = "/Applications/Bell.app"
                 parent_pid = os.getppid()
                 log_file = "/tmp/bell_update.log"
                 data_dir = str(DATA_DIR)
@@ -844,7 +838,6 @@ for e in data.get('system-entities', []):
 " 2>/dev/null)
 
 if [ -z "$MOUNT_PT" ]; then
-    # fallback: /Volumes 에서 Bell 관련 볼륨 찾기
     MOUNT_PT=$(ls /Volumes | grep -i [Bb]ell | head -1)
     MOUNT_PT="/Volumes/$MOUNT_PT"
 fi
@@ -854,25 +847,40 @@ echo "[update] mount_pt=$MOUNT_PT"
 # ── Bell.app 찾기 ─────────────────────────────────────────────
 SRC_APP=$(find "$MOUNT_PT" -maxdepth 2 -name "Bell.app" -type d 2>/dev/null | head -1)
 echo "[update] src_app=$SRC_APP"
+echo "[update] dst_app={dst_app}"
 
 if [ -d "$SRC_APP" ]; then
+    # 기존 앱 제거 후 복사 (표준 cp -R 사용, rsync 타임스탬프 오류 방지)
+    echo "[update] removing old {dst_app}"
+    rm -rf "{dst_app}" 2>/dev/null || sudo rm -rf "{dst_app}" 2>/dev/null || true
+
     echo "[update] copying $SRC_APP -> {dst_app}"
-    rm -rf "{dst_app}"
-    if ! cp -R "$SRC_APP" "{dst_app}" 2>/dev/null; then
-        echo "[update] cp failed, trying rsync"
-        rsync -a --delete "$SRC_APP/" "{dst_app}/" || {{
-            echo "[update] rsync also failed"
-            hdiutil detach "$MOUNT_PT" -force -quiet 2>/dev/null || true
-            rm -f "{data_dir}/pending_update.txt"
-            exit 1
-        }}
+    cp -R "$SRC_APP" "{dst_app}"
+    CP_RESULT=$?
+
+    if [ $CP_RESULT -ne 0 ]; then
+        echo "[update] cp failed ($CP_RESULT), trying with sudo"
+        sudo cp -R "$SRC_APP" "{dst_app}"
+        CP_RESULT=$?
     fi
+
+    if [ $CP_RESULT -ne 0 ]; then
+        echo "[update] all copy attempts failed, opening DMG for manual install"
+        hdiutil detach "$MOUNT_PT" -force -quiet 2>/dev/null || true
+        open "{file_path}"
+        rm -f "{data_dir}/pending_update.txt"
+        exit 1
+    fi
+
     echo "[update] copy done"
 
     # ── DMG 언마운트 ──────────────────────────────────────────
     hdiutil detach "$MOUNT_PT" -force -quiet 2>/dev/null || true
     rm -f "{file_path}"
     rm -f "{data_dir}/pending_update.txt"
+
+    # ── 새 앱 격리 속성 제거 (첫 실행 경고 방지) ─────────────
+    xattr -dr com.apple.quarantine "{dst_app}" 2>/dev/null || true
 
     # ── 새 앱 실행 → 구 프로세스 종료 ────────────────────────
     echo "[update] launching {dst_app}"
