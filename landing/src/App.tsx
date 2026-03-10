@@ -10,13 +10,13 @@ function App() {
         <div className="min-h-screen bg-white text-slate-900 flex flex-col items-center justify-center p-6 font-sans">
             <div className="max-w-xl w-full text-center space-y-8">
                 {/* Header */}
-                <div className="space-y-2">
+                <div className="space-y-2 animate-fade-in-up delay-100">
                     <h1 className="text-4xl font-black tracking-tight text-slate-900">Bell</h1>
-                    <p className="text-slate-500 font-medium">언제 어디서나, 가장 빠른 알람 & 메신저</p>
+                    <p className="text-slate-500 font-medium">사내 메신저</p>
                 </div>
 
                 {/* Download Buttons */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-fade-in-up delay-200">
                     <a
                         href={downloadLinks.macos}
                         className="flex flex-col items-center gap-3 p-6 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 transition-all active:scale-95"
@@ -41,7 +41,7 @@ function App() {
                 </div>
 
                 {/* Quick Guide */}
-                <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 text-left">
+                <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 text-left animate-fade-in-up delay-300">
                     <div className="flex items-center gap-2 text-amber-700 font-bold mb-3">
                         <ShieldAlert size={20} />
                         <span>macOS 실행 가이드</span>
@@ -52,7 +52,7 @@ function App() {
                 </div>
 
                 {/* Footer */}
-                <footer className="pt-8 text-xs text-slate-400 border-t border-slate-100">
+                <footer className="pt-8 text-xs text-slate-400 border-t border-slate-100 animate-fade-in-up delay-400">
                     © 2026 Bell Project. All rights reserved.
                 </footer>
             </div>
