@@ -36,10 +36,29 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.61"
+CURRENT_VERSION = "v1.1.62"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
+
+def _get_real_tray_status() -> str:
+    """_current_tray_status가 offline이면 DB에서 실제 상태를 조회해 반환"""
+    global _current_tray_status
+    if _current_tray_status != 'offline':
+        return _current_tray_status
+    try:
+        from pathlib import Path
+        _um = UserInfoManager(str(Path.home() / ".bell" / "webview_data"))
+        _user = _um.get_user()
+        if _user and _user.get('id'):
+            _db = DBManager()
+            _status = _db.get_user_status(_user['id'])
+            if _status in ('online', 'away', 'busy'):
+                _current_tray_status = _status
+                return _status
+    except Exception:
+        pass
+    return _current_tray_status
 
 def to_camel(snake_str):
     """snake_case를 camelCase로 변환"""
@@ -963,8 +982,10 @@ class SimpleWebHandler(SimpleHTTPRequestHandler):
                 self.wfile.flush()
                 
                 # 현재 트레이 상태를 즉시 전송 (SSE 연결 타이밍 경쟁 조건 해소)
+                # offline이면 모듈 레벨 함수로 DB 실제 상태 조회
                 import json as _json
-                _sync_payload = _json.dumps({"action": "update_tray", "status": _current_tray_status})
+                _sync_status = _get_real_tray_status()
+                _sync_payload = _json.dumps({"action": "update_tray", "status": _sync_status})
                 self.wfile.write(f"event: SYSTEM\ndata: {_sync_payload}\n\n".encode('utf-8'))
                 self.wfile.flush()
                 

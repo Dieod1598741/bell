@@ -42,7 +42,7 @@ onMounted(async () => {
   isInitializing.value = false
 })
 
-// 자동 로그인 체크
+// 자동 로그인 체크 - 백엔드 파일에 저장된 사용자 정보 기반으로 복원
 const checkAutoLogin = async () => {
   // 이미 로그인된 상태면 메인으로 이동
   if (userStore.isLoggedIn && userStore.user) {
@@ -51,48 +51,48 @@ const checkAutoLogin = async () => {
     }
     return
   }
-  
-  // API 준비 대기
+
+  // API 준비 대기 (최대 1초)
   let retryCount = 0
   const maxRetries = 20
-  while (!window.pywebview?.api?.getLoginSettings && retryCount < maxRetries) {
+  while (!window.pywebview?.api?.getUserInfo && retryCount < maxRetries) {
     await new Promise(resolve => setTimeout(resolve, 50))
     retryCount++
   }
-  
-  // 로그인 설정 조회
-  if (window.pywebview?.api?.getLoginSettings) {
-    try {
-      const settingsResult = await window.pywebview.api.getLoginSettings()
-      if (settingsResult.success && settingsResult.data) {
-        const settings = settingsResult.data
-        
-        // 자동 로그인이 체크되어 있고 아이디가 저장되어 있으면
-        if (settings.auto_login && settings.saved_user_id) {
-          const userId = settings.saved_user_id
-          
-          // 백엔드에서 저장된 사용자 정보 확인
-          if (window.pywebview?.api?.getUserInfo) {
-            const userResult = await window.pywebview.api.getUserInfo()
-            if (userResult?.success && userResult?.data) {
-              const userData = userResult.data
-              if (userData.id === userId) {
-                // 저장된 사용자 정보가 있으면 자동 로그인
-                await userStore.setUser(userData)
-                const { updateUserStatus } = await import('@/services/statusService')
-                await updateUserStatus(userId, 'online')
-                if (router.currentRoute.value.path !== '/main') {
-                  router.replace('/main')
-                }
-                return
-              }
-            }
-          }
-        }
+
+  if (!window.pywebview?.api?.getUserInfo) {
+    console.log('[App] API 준비 안 됨, 자동 로그인 건너뜀')
+    return
+  }
+
+  try {
+    // 1. 백엔드에 저장된 사용자 정보 확인 (로그인 여부와 무관하게 복원)
+    const userResult = await window.pywebview.api.getUserInfo()
+    if (userResult?.success && userResult?.data?.id) {
+      const userData = userResult.data
+      console.log('[App] 저장된 사용자 정보 복원:', userData.id)
+      await userStore.setUser(userData)
+
+      // 상태를 online으로 복원 (트레이 포함)
+      const { updateUserStatus } = await import('@/services/statusService')
+      await updateUserStatus(userData.id, 'online')
+
+      if (router.currentRoute.value.path !== '/main') {
+        router.replace('/main')
       }
-    } catch (e) {
-      console.error('[App] 자동 로그인 체크 실패:', e)
+      return
     }
+
+    // 2. 백엔드 사용자 정보 없음 → auto_login 설정 체크 (fallback)
+    if (window.pywebview?.api?.getLoginSettings) {
+      const settingsResult = await window.pywebview.api.getLoginSettings()
+      if (settingsResult?.success && settingsResult?.data?.auto_login && settingsResult?.data?.saved_user_id) {
+        console.log('[App] auto_login 설정으로 재시도')
+        // auto_login이지만 백엔드 유저데이터가 없으면 로그인 화면으로 (아이디만 채워줌)
+      }
+    }
+  } catch (e) {
+    console.error('[App] 자동 로그인 체크 실패:', e)
   }
 }
 
