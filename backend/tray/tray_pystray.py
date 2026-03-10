@@ -166,11 +166,53 @@ class PystrayTrayManager(BaseTrayManager):
         """트레이 설정 및 초기화"""
         self.current_status = current_status if current_status else 'offline'
         
-        # 메뉴 구성
-        menu = (
+        # ── 상태 레이블: 동적 텍스트 (열 때마다 self.current_status 읽음) ──
+        def status_text(icon, item):
+            STATUS_KR = {
+                'online':  '온라인',
+                'away':    '자리비움',
+                'busy':    '바쁨',
+                'offline': '오프라인',
+            }
+            return '상태: ' + STATUS_KR.get(self.current_status, self.current_status)
+        
+        # ── 업데이트 확인 메뉴 항목 ──────────────────────────────────────
+        def check_update_action(icon, item):
+            """백그라운드 스레드에서 업데이트 확인"""
+            def _do_check():
+                try:
+                    # gui_process.py의 API 객체를 통해 checkUpdate 호출
+                    import requests as req  # type: ignore
+                    import platform
+                    from gui_process import CURRENT_VERSION  # type: ignore
+                    resp = req.get(
+                        "https://api.github.com/repos/Dieod1598741/bell/releases/latest",
+                        timeout=10, headers={"Accept": "application/vnd.github+json",
+                                             "User-Agent": "Bell-App"}
+                    )
+                    data = resp.json()
+                    latest = data.get("tag_name", "")
+                    def parse_ver(v):
+                        return tuple(int(x) for x in v.lstrip("v").split("."))
+                    if latest and parse_ver(latest) > parse_ver(CURRENT_VERSION):
+                        self.show_notification(
+                            "Bell 업데이트",
+                            f"새 버전 {latest} 이 출시됐습니다! 앱을 열어 업데이트하세요."
+                        )
+                    else:
+                        self.show_notification("Bell", f"현재 최신 버전입니다 ({CURRENT_VERSION})")
+                except Exception as e:
+                    print(f"[Pystray] 업데이트 확인 오류: {e}")
+                    self.show_notification("Bell", "업데이트 확인 실패. 네트워크를 확인하세요.")
+            threading.Thread(target=_do_check, daemon=True).start()
+        
+        # ── 메뉴 구성 (callable title → 동적 텍스트) ────────────────────
+        menu = pystray.Menu(
             item('앱 열기', self.on_show_window, default=True),
-            item('상태: ' + self.current_status, lambda: None, enabled=False),
-            item.separator if hasattr(item, 'separator') else pystray.Menu.SEPARATOR,
+            item(status_text, lambda icon, item: None, enabled=False),
+            pystray.Menu.SEPARATOR,
+            item('업데이트 확인', check_update_action),
+            pystray.Menu.SEPARATOR,
             item('종료', self.on_quit)
         )
         
@@ -210,7 +252,11 @@ class PystrayTrayManager(BaseTrayManager):
         if self.pystray_icon:
             assert self.pystray_icon is not None
             self.pystray_icon.icon = self._create_image(self.current_status, self.unread_count)  # type: ignore[union-attr]
-            # 메뉴 내 상태 표시 텍스트 갱신을 위해 메뉴 재생성 고려 (필요시)
+            # 메뉴 내 상태 텍스트도 갱신 (dynamic callable title이 다시 읽힘)
+            try:
+                self.pystray_icon.update_menu()  # type: ignore[union-attr]
+            except Exception:
+                pass  # 일부 플랫폼에서 지원 안 될 수 있음
 
     def show_notification(self, title, message):
         """시스템 알림 출력 (macOS/Windows 크로스플랫폼)"""
