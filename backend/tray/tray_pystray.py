@@ -122,34 +122,20 @@ class PystrayTrayManager(BaseTrayManager):
             )
 
             # ─────────────────────────────────────────────────
-            # 4. 배지 (좌측 상단, 알림 개수)
+            # 4. 알림 배지 — 카카오톡 스타일 빨간 점 (우측 상단)
             # ─────────────────────────────────────────────────
             if count > 0:
-                badge_r = max(9, SIZE // 3)
-                draw.ellipse((0, 0, badge_r, badge_r), fill=(255, 59, 48, 255))
-                try:
-                    font_paths = [
-                        "/System/Library/Fonts/Helvetica.ttc",
-                        "C:\\Windows\\Fonts\\arial.ttf",
-                        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                    ]
-                    font = None
-                    for fp in font_paths:
-                        if os.path.exists(fp):
-                            font = ImageFont.truetype(fp, max(7, badge_r - 4))
-                            break
-                    if not font:
-                        font = ImageFont.load_default()
-                except Exception:
-                    font = ImageFont.load_default()
-
-                text = str(count) if count < 10 else "9+"
-                bbox = draw.textbbox((0, 0), text, font=font)
-                tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-                draw.text(
-                    ((badge_r - tw) / 2, (badge_r - th) / 2 - 1),
-                    text, font=font, fill=(255, 255, 255, 255)
-                )
+                # 점 크기: 아이콘의 약 28% (작고 깔끔하게)
+                dot_r = max(7, SIZE // (3 if is_windows else 4))
+                # 우측 상단 위치
+                bx0 = SIZE - dot_r - 1
+                by0 = 1
+                bx1 = SIZE - 1
+                by1 = dot_r + 1
+                # 흰색 테두리 (배경 아이콘과 분리감)
+                draw.ellipse((bx0 - 2, by0 - 2, bx1 + 2, by1 + 2), fill=(255, 255, 255, 255))
+                # 빨간 점
+                draw.ellipse((bx0, by0, bx1, by1), fill=(255, 50, 50, 255))
 
             # ─────────────────────────────────────────────────
             # 5. Windows 최종 처리: RGBA → RGB (pystray 호환)
