@@ -78,6 +78,7 @@ import MessageInboxItem from '@/components/inbox/MessageInboxItem.vue'
 import InboxDetailLayer from '@/components/layers/InboxDetailLayer.vue'
 import NoteLayer from '@/components/layers/NoteLayer.vue'
 import { useUserStore } from '@/stores/userStore'
+import { sseClient } from '@/services/sseClient'
 
 const userStore = useUserStore()
 const listContainer = ref(null)
@@ -89,7 +90,8 @@ const replyTargetId = ref(null)
 const allInbox = ref([])
 const isLoading = ref(true)
 let unwatchInbox = null
-let inboxHandler = null  // 로컬 변수로 변경 (window 글로벌 오염 방지)
+let unwatchSseNew = null      // NEW_ANNOUNCEMENT 해제
+let unwatchSseStatus = null   // INBOX_STATUS_CHANGED 해제
 
 const filters = [
   { value: 'all', label: '전체' },
@@ -139,19 +141,41 @@ onMounted(async () => {
         read: false
       })
     }
-    inboxHandler = handleNewInbox
-    window.addEventListener('bell-new-inbox', inboxHandler)
+
+    // SSE: NEW_ANNOUNCEMENT → sseClient 경유 (target_user_id 필터링 포함)
+    unwatchSseNew = sseClient.on('NEW_ANNOUNCEMENT', (data) => {
+      if (!data?.id) return
+      // 나에게 온 메시지인지 확인
+      if (data.target_user_id && data.target_user_id !== currentUserId) return
+      const already = allInbox.value.find(m => m.id === data.id)
+      if (already) return
+      const sender = usersMap.get(data.sender_user_id)
+      allInbox.value.unshift({
+        id: data.id,
+        senderId: data.sender_user_id,
+        senderName: sender ? (sender.nickNm || sender.name) : data.sender_user_id,
+        message: data.message || '',
+        type: data.type || 'message',
+        time: new Date().toISOString(),
+        read: false
+      })
+    })
+
+    // SSE: INBOX_STATUS_CHANGED → 수락/거절 상태 즉시 반영
+    unwatchSseStatus = sseClient.on('INBOX_STATUS_CHANGED', (data) => {
+      if (!data?.id) return
+      const idx = allInbox.value.findIndex(m => m.id === data.id)
+      if (idx !== -1) {
+        allInbox.value[idx] = { ...allInbox.value[idx], status: data.status }
+      }
+    })
   }
 })
 
 onUnmounted(() => {
-  if (unwatchInbox) {
-    unwatchInbox()
-  }
-  if (inboxHandler) {
-    window.removeEventListener('bell-new-inbox', inboxHandler)
-    inboxHandler = null
-  }
+  if (unwatchInbox) unwatchInbox()
+  if (unwatchSseNew) unwatchSseNew()
+  if (unwatchSseStatus) unwatchSseStatus()
 })
 
 const filteredInbox = computed(() => {

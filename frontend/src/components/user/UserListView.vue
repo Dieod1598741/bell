@@ -50,6 +50,7 @@ import { Search } from '@element-plus/icons-vue'
 import { watchUsers } from '@/services/userService'
 import { useUserStore } from '@/stores/userStore'
 import UserItem from '@/components/user/UserItem.vue'
+import { sseClient } from '@/services/sseClient'
 
 const props = defineProps({
   selectedUserId: {
@@ -69,7 +70,7 @@ const listContainer = ref(null)
 const allUsers = ref([])
 const isLoading = ref(true)
 let unwatchUsers = null
-let userStatusHandler = null  // 로컬 변수 (window 전역 오염 방지)
+let unwatchUserStatus = null  // sseClient.on() 해제 함수
 
 // MainView에서 prop으로 받은 searchQuery를 내부 ref에 동기화
 watch(() => props.searchQuery, (val) => {
@@ -96,9 +97,9 @@ onMounted(() => {
     isLoading.value = false
   }, currentUserId)
 
-  // SSE: 사용자 상태 실시간 업데이트
-  userStatusHandler = (e) => {
-    const { user_id, user_status, connection_status } = e.detail || {}
+  // SSE: USER_STATUS_CHANGED → sseClient 경유 (evaluate_js + EventSource 모두 수신)
+  unwatchUserStatus = sseClient.on('USER_STATUS_CHANGED', (data) => {
+    const { user_id, user_status, connection_status } = data || {}
     if (!user_id) return
     const idx = allUsers.value.findIndex(u => u.id === user_id)
     if (idx !== -1) {
@@ -110,8 +111,7 @@ onMounted(() => {
         connectionStatus: connection_status || allUsers.value[idx].connectionStatus
       }
     }
-  }
-  window.addEventListener('bell-user-status', userStatusHandler)
+  })
 
   if (props.selectedUserId) {
     scrollToSelectedUser()
@@ -120,10 +120,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (unwatchUsers) unwatchUsers()
-  if (userStatusHandler) {
-    window.removeEventListener('bell-user-status', userStatusHandler)
-    userStatusHandler = null
-  }
+  if (unwatchUserStatus) unwatchUserStatus()
 })
 
 const groupedUsers = computed(() => {
