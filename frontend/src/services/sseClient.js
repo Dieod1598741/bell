@@ -79,9 +79,56 @@ class SSEClient {
     }
 
     _connectEventSource() {
-        // 재연결 시도
-        this.eventSource = null
-        this.connect()
+        // 기존 eventSource가 있으면 닫고 null로 초기화
+        if (this.eventSource) {
+            try { this.eventSource.close() } catch (_) { }
+            this.eventSource = null
+        }
+
+        const url = `${window.location.origin}/events`
+        console.log(`[SSEClient] EventSource 재연결 시도: ${url}`)
+
+        try {
+            this.eventSource = new EventSource(url)
+
+            this.eventSource.onopen = () => {
+                console.log('[SSEClient] EventSource 재연결 성공')
+                this.connected = true
+                this._emit('status', { connected: true })
+            }
+
+            this.eventSource.onerror = () => {
+                this.connected = false
+                console.warn('[SSEClient] EventSource 오류. 3초 후 재연결...')
+                try { this.eventSource?.close() } catch (_) { }
+                this.eventSource = null
+                setTimeout(() => this._connectEventSource(), 3000)
+            }
+
+            this.eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data)
+                    this._emit('message', data)
+                } catch (e) { }
+            }
+
+            const customEvents = [
+                'DB_UPDATE', 'NEW_CHAT', 'NEW_ANNOUNCEMENT', 'SYSTEM',
+                'USER_STATUS_CHANGED', 'INBOX_STATUS_CHANGED', 'DOWNLOAD_PROGRESS'
+            ]
+            customEvents.forEach(eventType => {
+                this.eventSource.addEventListener(eventType, (event) => {
+                    try {
+                        const data = JSON.parse(event.data)
+                        console.log(`[SSEClient] HTTP SSE event: ${eventType}`, data)
+                        this._emit(eventType, data)
+                    } catch (e) { }
+                })
+            })
+        } catch (e) {
+            console.warn('[SSEClient] EventSource 생성 실패:', e)
+            setTimeout(() => this._connectEventSource(), 3000)
+        }
     }
 
     disconnect() {

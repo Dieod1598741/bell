@@ -153,7 +153,7 @@ class API:
                 except Exception as e:
                     print(f"[Sync] Error: {e}")
                 
-                time.sleep(5)  # 5초마다 확인 (폴링)
+                time.sleep(2)  # 2초마다 확인 (5초→2초로 단축)
         
         import threading
         threading.Thread(target=sync_task, daemon=True).start()

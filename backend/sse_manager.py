@@ -52,18 +52,15 @@ class SSEManager:
 
     def broadcast(self, event_type, data):
         """모든 클라이언트에게 이벤트 전송 (SSE큐 + pywebview window 직접 dispatch 이중 전송)"""
-        # 큐에는 dict 형태로 저장 (subscribe 방식 호환)
-        message_dict = {'event': event_type, 'data': data}
-        # HTTP SSE 응답용 문자열
+        # HTTP SSE 응답용 포맷 문자열 (SimpleWebHandler가 .encode()로 직접 전송)
         message_str = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
-        # 1. HTTP SSE 큐 전송 (EventSource 연결된 경우)
+        # 1. HTTP SSE 큐 전송 (문자열로 저장 — encode() 호환)
         with self.lock:
             dead = []
             for q in self.clients:
                 try:
-                    # add_client()로 등록된 큐에는 dict, 하위 호환을 위해 dict 사용
-                    q.put(message_dict)
+                    q.put(message_str)  # ← 반드시 str 형태로 (SimpleWebHandler에서 .encode())
                 except Exception:
                     dead.append(q)
             for q in dead:
