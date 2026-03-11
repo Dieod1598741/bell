@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.71"
+CURRENT_VERSION = "v1.1.72"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -541,12 +541,9 @@ class API:
         """메시지 읽음 처리 후 트레이 카운트 즉시 갱신"""
         try:
             table = 'chats' if msg_type == 'chat' else 'inbox'
-            try:
-                query = f"UPDATE {table} SET read_at = NOW() WHERE id = %s"
-                self.db_manager.execute_query(query, (message_id,), fetch=False)
-            except Exception:
-                query = f"UPDATE {table} SET read = TRUE WHERE id = %s"
-                self.db_manager.execute_query(query, (message_id,), fetch=False)
+            # read_at과 read=TRUE 동시에 업데이트 (get_unread_count는 read=false 조건 사용)
+            query = f"UPDATE {table} SET read = TRUE, read_at = NOW() WHERE id = %s"
+            self.db_manager.execute_query(query, (message_id,), fetch=False)
 
             # ─── 핵심 수정: 읽음 처리 후 트레이 즉시 갱신 ───────────────
             try:

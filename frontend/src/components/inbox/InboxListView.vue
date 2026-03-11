@@ -262,6 +262,9 @@ const openDetail = async (item) => {
   showDetailLayer.value = true
   if (!item.read) {
     await markMessageRead(item.id, 'inbox')
+    // allInbox 배열에서 찾아 read=true 갱신 (Vue 반응성 보장)
+    const idx = allInbox.value.findIndex(m => m.id === item.id)
+    if (idx !== -1) allInbox.value[idx] = { ...allInbox.value[idx], read: true }
     item.read = true
   }
 }

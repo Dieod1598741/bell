@@ -137,9 +137,22 @@ const loadMessages = async (loadMore = false) => {
           const newScrollHeight = messagesContainer.value.scrollHeight
           messagesContainer.value.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop
         })
-      } else {
+    } else {
         messages.value = converted
         scrollToBottom()
+        // ─── 채팅창 진입 시 수신 메시지 일괄 읽음 처리 ───
+        const currentUserId = userStore.user?.id
+        const unreadIds = converted
+          .filter(m => !m.isSent && !m.read)
+          .map(m => m.id)
+        if (unreadIds.length > 0 && currentUserId) {
+          unreadIds.forEach(id => markChatMessageRead(id))
+          // 로컬 상태도 즉시 갱신
+          messages.value = messages.value.map(m =>
+            !m.isSent && !m.read ? { ...m, read: true } : m
+          )
+        }
+        // ─────────────────────────────────────────────────
       }
 
       lastDoc.value = result.lastDoc
