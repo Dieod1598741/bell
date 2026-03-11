@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.73"
+CURRENT_VERSION = "v1.1.74"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -1089,37 +1089,62 @@ echo "[update] done"
 
             elif system == "Windows":
                 # ── Windows 자동 업데이트 ──────────────────────────────
-                # 현재 Bell.exe 경로
+                import tempfile
+
+                # 파일명으로 인스톨러 여부 판단
+                fname = os.path.basename(file_path).lower()
+                is_installer = any(kw in fname for kw in ('install', 'setup', 'nsis'))
+
                 current_exe = sys.executable if getattr(sys, 'frozen', False) else sys.executable
-                
-                bat = f"""@echo off
+                data_dir_str = str(DATA_DIR)
+
+                if is_installer:
+                    # ─── NSIS 인스톨러 방식 ───────────────────────────
+                    # /S = 자동 설치(silent), /D = 설치 경로
+                    install_dir = os.path.dirname(current_exe)
+                    bat = f"""@echo off
+chcp 65001 >nul
+timeout /t 2 /nobreak >nul
+REM Bell 종료 대기
+taskkill /IM Bell.exe /F >nul 2>&1
+timeout /t 1 /nobreak >nul
+REM NSIS 인스톨러 실행 (자동/일반 설치)
+start /wait "" "{file_path}"
+REM 설치 완료 후 새 Bell 실행
+if exist "{current_exe}" start "" "{current_exe}"
+REM 임시 파일 정리
+del /F /Q "{file_path}" >nul 2>&1
+del /F /Q "{data_dir_str}\\pending_update.txt" >nul 2>&1
+del "%~f0"
+"""
+                else:
+                    # ─── Portable 단일 exe 교체 방식 ──────────────────
+                    bat = f"""@echo off
+chcp 65001 >nul
 timeout /t 2 /nobreak >nul
 taskkill /IM Bell.exe /F >nul 2>&1
 timeout /t 2 /nobreak >nul
-
-REM 기존 exe를 .bak으로 이동 후 새 파일 배치 (실행 중인 파일 직접 덮어쓰기 방지)
 if exist "{current_exe}.bak" del /F /Q "{current_exe}.bak"
 move /Y "{current_exe}" "{current_exe}.bak" >nul 2>&1
 move /Y "{file_path}" "{current_exe}"
-
-REM move 실패 시 copy fallback
 if not exist "{current_exe}" (
     copy /Y "{file_path}" "{current_exe}" >nul 2>&1
 )
-
 del /F /Q "{current_exe}.bak" >nul 2>&1
 del /F /Q "{file_path}" >nul 2>&1
+del /F /Q "{data_dir_str}\\pending_update.txt" >nul 2>&1
 SET BELL_GUI_MODE=
 SET BELL_IPC_PORT=
 start "" "{current_exe}"
 del "%~f0"
 """
+
                 bat_path = os.path.join(tempfile.gettempdir(), 'bell_update.bat')
-                with open(bat_path, 'w') as f:
+                with open(bat_path, 'w', encoding='utf-8-sig') as f:
                     f.write(bat)
 
                 subprocess.Popen(
-                    [bat_path],
+                    ['cmd.exe', '/c', bat_path],
                     creationflags=getattr(subprocess, 'CREATE_NEW_CONSOLE', 0) |
                                   getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0),
                     close_fds=True
