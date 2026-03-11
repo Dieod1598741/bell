@@ -133,28 +133,56 @@ class API:
         def sync_task():
             import time
             last_checked_count = -1
+            last_chat_id = -1   # 마지막으로 확인한 수신 chat 메시지 id (-1=초기화 필요)
+
             while True:
                 try:
                     user_data = self.user_manager.get_user()
                     if user_data and user_data.get('id'):
                         user_id = user_data.get('id')
-                        
+
                         # 1. 읽지 않은 총 개수 확인 (배지 업데이트용)
                         current_count = self.db_manager.get_unread_count(user_id)
                         if current_count != last_checked_count:
                             self._send_tray_update(count=current_count)
-                            # 개수가 늘어났으면 알림 시도 (단일 알림은 추후 로직 보강)
                             if current_count > last_checked_count and last_checked_count != -1:
                                 self._send_notification("새로운 알림", f"읽지 않은 메시지가 {current_count}개 있습니다.")
-                                # SSE로도 전파하여 프론트엔드 갱신 유도
                                 self.sse_manager.broadcast("DB_UPDATE", {"table": "inbox", "action": "update"})
-                            
                             last_checked_count = current_count
+
+                        # 2. 나에게 온 새 채팅 메시지 폴링 → NEW_CHAT 브로드캐스트
+                        #    (다른 PC에서 보낸 메시지는 SSE broadcast가 안 닿으므로
+                        #     여기서 직접 DB를 폴링해서 내 화면에 전달해야 함)
+                        try:
+                            if last_chat_id == -1:
+                                # 최초 1회: 현재 최신 id를 기억만 하고 브로드캐스트 안 함
+                                rows, _ = self.db_manager.execute_query(
+                                    "SELECT COALESCE(MAX(id), 0) AS max_id FROM chats WHERE target_user_id = %s",
+                                    (user_id,)
+                                )
+                                last_chat_id = rows[0]['max_id'] if rows else 0
+                                print(f"[Sync] 채팅 폴링 초기화: last_chat_id={last_chat_id}")
+                            else:
+                                # 이후: last_chat_id보다 큰 새 메시지 가져오기
+                                rows, _ = self.db_manager.execute_query(
+                                    "SELECT * FROM chats WHERE target_user_id = %s AND id > %s ORDER BY id ASC",
+                                    (user_id, last_chat_id)
+                                )
+                                for row in (rows or []):
+                                    msg = dict(row)
+                                    msg['target_user_id'] = user_id
+                                    self.sse_manager.broadcast("NEW_CHAT", msg)
+                                    print(f"[Sync] 새 채팅 메시지 브로드캐스트: id={msg.get('id')}, from={msg.get('sender_user_id')}")
+                                if rows:
+                                    last_chat_id = max(r['id'] for r in rows)
+                        except Exception as e:
+                            print(f"[Sync] 채팅 폴링 오류: {e}")
+
                 except Exception as e:
                     print(f"[Sync] Error: {e}")
-                
-                time.sleep(2)  # 2초마다 확인 (5초→2초로 단축)
-        
+
+                time.sleep(2)  # 2초마다 확인
+
         import threading
         threading.Thread(target=sync_task, daemon=True).start()
 
