@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.70"
+CURRENT_VERSION = "v1.1.71"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
@@ -134,6 +134,7 @@ class API:
             import time
             last_checked_count = -1
             last_chat_id = -1   # 마지막으로 확인한 수신 chat 메시지 id (-1=초기화 필요)
+            last_inbox_id = -1  # 마지막으로 확인한 수신 inbox 메시지 id (-1=초기화 필요)
 
             while True:
                 try:
@@ -177,6 +178,35 @@ class API:
                                     last_chat_id = max(r['id'] for r in rows)
                         except Exception as e:
                             print(f"[Sync] 채팅 폴링 오류: {e}")
+
+                        # 3. 나에게 온 새 inbox 메시지 폴링 → NEW_ANNOUNCEMENT 브로드캐스트
+                        try:
+                            if last_inbox_id == -1:
+                                rows_i, _ = self.db_manager.execute_query(
+                                    "SELECT COALESCE(MAX(id), 0) AS max_id FROM inbox WHERE target_user_id = %s",
+                                    (user_id,)
+                                )
+                                last_inbox_id = rows_i[0]['max_id'] if rows_i else 0
+                                print(f"[Sync] inbox 폴링 초기화: last_inbox_id={last_inbox_id}")
+                            else:
+                                rows_i, _ = self.db_manager.execute_query(
+                                    "SELECT * FROM inbox WHERE target_user_id = %s AND id > %s ORDER BY id ASC",
+                                    (user_id, last_inbox_id)
+                                )
+                                for row in (rows_i or []):
+                                    msg_i = dict(row)
+                                    self.sse_manager.broadcast("NEW_ANNOUNCEMENT", {
+                                        "id": msg_i.get("id"),
+                                        "sender_user_id": msg_i.get("sender_user_id"),
+                                        "target_user_id": user_id,
+                                        "message": msg_i.get("message", ""),
+                                        "type": msg_i.get("type", "message")
+                                    })
+                                    print(f"[Sync] 새 inbox 메시지 브로드캐스트: id={msg_i.get('id')}")
+                                if rows_i:
+                                    last_inbox_id = max(r['id'] for r in rows_i)
+                        except Exception as e:
+                            print(f"[Sync] inbox 폴링 오류: {e}")
 
                 except Exception as e:
                     print(f"[Sync] Error: {e}")
