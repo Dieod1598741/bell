@@ -230,55 +230,23 @@ const runNotificationTest = async () => {
 }
 
 onMounted(async () => {
-  // 이미 로그인된 상태인지 확인
+  // 이미 로그인된 상태면 메인으로
   if (userStore.isLoggedIn && userStore.user) {
-    // 이미 로그인되어 있으면 메인으로 리다이렉트
     router.replace('/main')
     return
   }
-  
-  // 자동 로그인 체크 (App.vue에서 처리되지 않은 경우)
-  if (window.pywebview?.api?.getLoginSettings) {
-    try {
-      const settingsResult = await window.pywebview.api.getLoginSettings()
-      if (settingsResult.success && settingsResult.data) {
-        const settings = settingsResult.data
-        if (settings.auto_login && settings.saved_user_id) {
-          const userId = settings.saved_user_id
-          if (window.pywebview?.api?.getUserInfo) {
-            const userResult = await window.pywebview.api.getUserInfo()
-            if (userResult?.success && userResult?.data) {
-              const userData = userResult.data
-              if (userData.id === userId) {
-                await userStore.setUser(userData)
-                router.replace('/main')
-                return
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error('[LoginView] 자동 로그인 체크 실패:', e)
-    }
-  }
-  
-  // API가 준비될 때까지 대기 후 로그인 설정 로드
+
+  // App.vue checkAutoLogin이 이미 세션 복원 담당
+  // 여기서는 저장된 아이디 복원만 수행 (중복 자동 로그인 제거)
   let retryCount = 0
-  const maxRetries = 10
-  
-  const tryLoadSettings = async () => {
-    if (window.pywebview?.api?.getLoginSettings) {
-      await loadSavedUserId()
-    } else if (retryCount < maxRetries) {
-      retryCount++
-      setTimeout(tryLoadSettings, 200)
-    } else {
-      console.log('[LoginView] API 준비 대기 시간 초과')
-    }
+  while (!window.pywebview?.api?.getLoginSettings && retryCount < 20) {
+    await new Promise(resolve => setTimeout(resolve, 150))
+    retryCount++
   }
-  
-  tryLoadSettings()
+
+  if (window.pywebview?.api?.getLoginSettings) {
+    await loadSavedUserId()
+  }
 })
 
 // 비밀번호 해시화 함수
