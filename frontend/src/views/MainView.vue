@@ -277,7 +277,6 @@ const setupUnreadCountWatchers = () => {
 }
 
 onMounted(async () => {
-  // 로그인 상태 확인
   if (!userStore.isLoggedIn || !userStore.user) {
     console.log('[MainView] 로그인 상태 없음 - 로그인 페이지로 이동')
     router.push('/login')
@@ -289,16 +288,27 @@ onMounted(async () => {
   if (route.query.selectedUserId) {
     selectedUserId.value = route.query.selectedUserId
     activeMenu.value = 'users'
-    // query 파라미터 제거
     router.replace({ query: {} })
   }
   setupUnreadCountWatchers()
+
+  // 백엔드 DB 기준 정확한 count 실시간 반영 (2초 폴링)
+  window.addEventListener('bell-unread-count', _onUnreadCount)
 })
+
+const _onUnreadCount = (e) => {
+  // DB 기준 완전한 미읽음 count를 unreadCount에 즈시 반영
+  const count = e.detail?.count
+  if (typeof count === 'number') {
+    unreadCount.value = count
+  }
+}
 
 onUnmounted(() => {
   if (unwatchInbox) unwatchInbox()
   if (unwatchChats) unwatchChats()
   if (unwatchAnnouncements) unwatchAnnouncements()
+  window.removeEventListener('bell-unread-count', _onUnreadCount)
 })
 
 </script>

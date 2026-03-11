@@ -104,23 +104,16 @@ watch(
   () => userStore.isLoggedIn && userStore.user?.id,
   async (loggedInUserId) => {
     if (loggedInUserId) {
-      const userId = loggedInUserId  // string (truthy 확인 후)
-      // 사용자 ID가 변경되었으면 이전 모니터링 중지
+      const userId = loggedInUserId
       if (currentMonitoringUserId && currentMonitoringUserId !== userId) {
         stopActivityMonitoring()
         currentMonitoringUserId = null
       }
-      
-      // 새 사용자로 로그인한 경우에만 모니터링 시작
       if (!currentMonitoringUserId) {
-        await new Promise(resolve => setTimeout(resolve, 300))
-        await restoreSession()
-        // 활동 모니터링 시작
         currentMonitoringUserId = userId
         startActivityMonitoring()
       }
     } else {
-      // 로그아웃 시 활동 모니터링 중지
       stopActivityMonitoring()
       currentMonitoringUserId = null
     }
@@ -260,8 +253,16 @@ const setupNotificationListeners = () => {
     })
   })
 
+  // SYSTEM 이벤트 (tray update: count 반영 → 모든 컴포넌트에서 구독 가능하게 window에 발행)
+  const unsubSystem = sseClient.on('SYSTEM', (data) => {
+    if (data?.action === 'update_tray' && typeof data.count === 'number') {
+      // 다른 컴포넌트에 모든 count가 필요하다면 window 이벤트로 전달
+      window.dispatchEvent(new CustomEvent('bell-unread-count', { detail: { count: data.count } }))
+    }
+  })
+
   // 구독 해제 함수 저장 (onUnmounted에서 정리)
-  sseUnsubscribers = [unsubNewChat, unsubAnnouncement, unsubUserStatus, unsubInboxStatus]
+  sseUnsubscribers = [unsubNewChat, unsubAnnouncement, unsubUserStatus, unsubInboxStatus, unsubSystem]
 }
 
 // 컴포넌트 언마운트 시 정리
