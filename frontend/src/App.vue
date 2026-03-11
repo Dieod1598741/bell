@@ -29,9 +29,6 @@ onMounted(async () => {
   // 자동 로그인 체크를 먼저 수행 (로그인 화면이 보이지 않도록)
   await checkAutoLogin()
 
-  // 세션 복원
-  await restoreSession()
-
   // 활동 상태 모니터링 시작 (마우스 움직임 기반 자리비움 감지)
   startActivityMonitoring()
 
@@ -52,16 +49,20 @@ const checkAutoLogin = async () => {
     return
   }
 
-  // API 준비 대기 (최대 4초 — 창 재오픈 시 pywebview 브리지 준비 시간 확보)
+  // API 준비 대기 (최대 6초 — Windows에서 브리지 준비 시간이 macOS보다 길 수 있음)
   let retryCount = 0
-  const maxRetries = 40  // 20 → 40 (창 재오픈 시 브리지 준비 시간 더 필요)
+  const maxRetries = 60  // 40 → 60 (6초)
   while (!window.pywebview?.api?.getUserInfo && retryCount < maxRetries) {
-    await new Promise(resolve => setTimeout(resolve, 100))  // 50ms → 100ms
+    await new Promise(resolve => setTimeout(resolve, 100))
     retryCount++
   }
 
   if (!window.pywebview?.api?.getUserInfo) {
-    console.log('[App] API 준비 안 됨 (4초 대기 초과), 자동 로그인 건너뜀')
+    console.log('[App] API 준비 안 됨 (6초 대기 초과), 로그인 페이지로 이동')
+    // ※ 타임아웃 시 /login으로 명시 이동 (흰 화면 방지)
+    if (router.currentRoute.value.path !== '/login') {
+      router.replace('/login')
+    }
     return
   }
 
@@ -83,16 +84,16 @@ const checkAutoLogin = async () => {
       return
     }
 
-    // 2. 백엔드 사용자 정보 없음 → auto_login 설정 체크 (fallback)
-    if (window.pywebview?.api?.getLoginSettings) {
-      const settingsResult = await window.pywebview.api.getLoginSettings()
-      if (settingsResult?.success && settingsResult?.data?.auto_login && settingsResult?.data?.saved_user_id) {
-        console.log('[App] auto_login 설정으로 재시도')
-        // auto_login이지만 백엔드 유저데이터가 없으면 로그인 화면으로 (아이디만 채워줌)
-      }
+    // 2. 백엔드 사용자 정보 없음 → 로그인 화면으로
+    console.log('[App] 저장된 사용자 정보 없음 → 로그인 페이지로 이동')
+    if (router.currentRoute.value.path !== '/login') {
+      router.replace('/login')
     }
   } catch (e) {
     console.error('[App] 자동 로그인 체크 실패:', e)
+    if (router.currentRoute.value.path !== '/login') {
+      router.replace('/login')
+    }
   }
 }
 
