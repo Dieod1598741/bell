@@ -37,6 +37,8 @@
             나중에
           </el-button>
         </div>
+        <!-- 에러 메시지 -->
+        <span v-if="errorMsg" class="error-text">{{ errorMsg }}</span>
       </div>
     </div>
   </transition>
@@ -57,6 +59,7 @@ const isDownloading = ref(false)
 const isDownloaded = ref(false)
 const savedFilePath = ref('')
 const downloadProgress = ref(0)
+const errorMsg = ref('')          // 다운로드/설치 에러 메시지
 
 const checkUpdate = async () => {
   try {
@@ -76,8 +79,13 @@ const checkUpdate = async () => {
 }
 
 const handleUpdate = async () => {
+  errorMsg.value = ''
   if (isDownloaded.value) {
-    await backendService.runInstaller(savedFilePath.value)
+    const r = await backendService.runInstaller(savedFilePath.value)
+    if (!r?.success) {
+      errorMsg.value = '설치 실패: ' + (r?.error || '다시 시도해주세요')
+      setTimeout(() => backendService.openUrl(releasePageUrl.value || downloadUrl.value), 2000)
+    }
     return
   }
 
@@ -104,11 +112,13 @@ const handleUpdate = async () => {
       isDownloaded.value = true
       savedFilePath.value = result.savePath
     } else {
-      backendService.openUrl(releasePageUrl.value || downloadUrl.value)
+      errorMsg.value = result.error || '다운로드 실패 — 수동 설치 페이지로 이동합니다'
+      setTimeout(() => backendService.openUrl(releasePageUrl.value || downloadUrl.value), 2000)
     }
   } catch (error) {
     console.error('[UpdateAlert] 다운로드 중 오류:', error)
-    backendService.openUrl(releasePageUrl.value || downloadUrl.value)
+    errorMsg.value = '다운로드 중 오류 — 수동 설치 페이지로 이동합니다'
+    setTimeout(() => backendService.openUrl(releasePageUrl.value || downloadUrl.value), 2000)
   } finally {
     isDownloading.value = false
     unwatch()
@@ -185,5 +195,11 @@ onMounted(async () => {
 .update-btn:hover {
   background-color: #ebb563;
   border-color: #ebb563;
+}
+
+.error-text {
+  font-size: 11px;
+  color: #f56c6c;
+  margin-left: 4px;
 }
 </style>

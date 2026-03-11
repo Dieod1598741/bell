@@ -71,6 +71,62 @@ function App() {
                         <span>업데이트 내역</span>
                     </div>
 
+                    {/* v1.1.77 */}
+                    <div className="mb-4">
+                        <span className="inline-block px-2 py-0.5 bg-blue-700 text-white text-xs font-bold rounded mb-2">v1.1.77</span>
+                        <ul className="space-y-1.5 text-sm text-blue-800">
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>Windows 토스트 알림 강화</strong> — winotify → plyer → win10toast → ctypes 4단계 폴백</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>macOS 알림 특수문자</strong> — osascript 따옴표 이스케이프 수정</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    {/* v1.1.76 */}
+                    <div className="mb-4">
+                        <span className="inline-block px-2 py-0.5 bg-blue-700 text-white text-xs font-bold rounded mb-2">v1.1.76</span>
+                        <ul className="space-y-1.5 text-sm text-blue-800">
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>뱃지 실시간 갱신</strong> — SYSTEM 이벤트 count 수신해 즉시 반영</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>중복 세션 복원 제거</strong> — watch(isLoggedIn)에서 restoreSession 호출 제거</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    {/* v1.1.75 */}
+                    <div className="mb-4">
+                        <span className="inline-block px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded mb-2">v1.1.75</span>
+                        <ul className="space-y-1.5 text-sm text-blue-800">
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>Windows 재실행 자동 로그인 안정화</strong> — LoginView 중복 자동 로그인 제거</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    {/* v1.1.73~74 */}
+                    <div className="mb-4">
+                        <span className="inline-block px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded mb-2">v1.1.73–74</span>
+                        <ul className="space-y-1.5 text-sm text-blue-800">
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>세션 흰 화면 방지</strong> — API 타임아웃 6초·실패 시 /login 이동</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>Windows 인앱 업데이트</strong> — NSIS 인스톨러·portable exe 자동 구분</span>
+                            </li>
+                        </ul>
+                    </div>
+
                     {/* v1.1.72 */}
                     <div className="mb-4">
                         <span className="inline-block px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded mb-2">v1.1.72</span>

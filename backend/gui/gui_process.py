@@ -36,7 +36,7 @@ from activity_monitor import ActivityMonitor
 from db_manager import DBManager
 from sse_manager import SSEManager
 
-CURRENT_VERSION = "v1.1.77"
+CURRENT_VERSION = "v1.1.78"
 
 # 트레이 상태 전역 변수 (SSE 클라이언트 연결 시 즉시 동기화용)
 _current_tray_status = 'offline'
