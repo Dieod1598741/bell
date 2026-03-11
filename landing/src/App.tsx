@@ -1,4 +1,4 @@
-import { Monitor, ShieldAlert, Zap, Bell as BellIcon, RefreshCw, CheckCircle } from 'lucide-react'
+import { Monitor, ShieldAlert, Zap, Bell as BellIcon, CheckCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 function App() {
@@ -64,34 +64,72 @@ function App() {
                     </span>
                 </div>
 
-                {/* What's New — v1.1.69 */}
+                {/* What's New — 버전별 업데이트 내역 */}
                 <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100 text-left animate-fade-in-up delay-250">
-                    <div className="flex items-center gap-2 text-blue-700 font-bold mb-3">
+                    <div className="flex items-center gap-2 text-blue-700 font-bold mb-4">
                         <Zap size={20} />
-                        <span>최신 업데이트 주요 개선사항</span>
+                        <span>업데이트 내역</span>
                     </div>
-                    <ul className="space-y-2 text-sm text-blue-800">
-                        <li className="flex items-start gap-2">
-                            <CheckCircle size={15} className="mt-0.5 shrink-0 text-blue-500" />
-                            <span><strong>실시간 채팅</strong> — 대화창을 보는 중에도 메시지 즉시 반영</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <CheckCircle size={15} className="mt-0.5 shrink-0 text-blue-500" />
-                            <span><strong>Windows 토스트 알림</strong> — 포커스 어시스트 환경에서도 알림 표시</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <CheckCircle size={15} className="mt-0.5 shrink-0 text-blue-500" />
-                            <span><strong>트레이 뱃지 즉시 갱신</strong> — 메시지 읽으면 즉시 숫자 제거</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <CheckCircle size={15} className="mt-0.5 shrink-0 text-blue-500" />
-                            <span><strong>창 닫기 후 재오픈 시 세션 유지</strong> — 로그인 화면 없이 바로 접속</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <RefreshCw size={15} className="mt-0.5 shrink-0 text-blue-500" />
-                            <span><strong>인앱 자동 업데이트</strong> — 앱 내에서 버튼 한 번으로 업데이트</span>
-                        </li>
-                    </ul>
+
+                    {/* v1.1.72 */}
+                    <div className="mb-4">
+                        <span className="inline-block px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded mb-2">v1.1.72</span>
+                        <ul className="space-y-1.5 text-sm text-blue-800">
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>읽음 뱃지 즉시 소거</strong> — 채팅·쪽지 열면 즉시 배지 숫자 제거</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>채팅창 진입 시 일괄 읽음 처리</strong> — 미읽은 메시지 자동 읽음 처리</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>읽음 DB 컬럼 통일</strong> — read/read_at 불일치 버그 수정</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    {/* v1.1.71 */}
+                    <div className="mb-4">
+                        <span className="inline-block px-2 py-0.5 bg-blue-500 text-white text-xs font-bold rounded mb-2">v1.1.71</span>
+                        <ul className="space-y-1.5 text-sm text-blue-800">
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>쪽지 실시간 수신</strong> — 다른 PC에서 보낸 쪽지 2초 이내 수신함 반영</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>수신자 필터링</strong> — 나에게 온 쪽지만 정확히 표시</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    {/* v1.1.70 */}
+                    <div className="mb-4">
+                        <span className="inline-block px-2 py-0.5 bg-blue-400 text-white text-xs font-bold rounded mb-2">v1.1.70</span>
+                        <ul className="space-y-1.5 text-sm text-blue-800">
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>채팅 실시간 수신</strong> — 상대방 메시지 2초 이내 대화창 즉시 반영</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>SSE 전체 점검</strong> — HTTP SSE 타입 버그·재연결 로직 수정</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    {/* v1.1.69 */}
+                    <div>
+                        <span className="inline-block px-2 py-0.5 bg-slate-400 text-white text-xs font-bold rounded mb-2">v1.1.69</span>
+                        <ul className="space-y-1.5 text-sm text-blue-800">
+                            <li className="flex items-start gap-2">
+                                <CheckCircle size={14} className="mt-0.5 shrink-0 text-blue-500" />
+                                <span><strong>Windows 토스트 알림</strong> · <strong>세션 유지</strong> · <strong>인앱 자동 업데이트</strong></span>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
 
                 {/* macOS 실행 가이드 */}
