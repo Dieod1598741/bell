@@ -256,41 +256,73 @@ class PystrayTrayManager(BaseTrayManager):
         """시스템 알림 출력 (macOS/Windows 크로스플랫폼)"""
         import platform
         system = platform.system()
-        
-        # ── 아이콘 경로 결정 ───────────────────────────────────
-        # Windows는 .ico, macOS는 .png 사용
-        icon_path = None
-        if system == 'Windows':
-            for name in ['bell_icon.ico', 'icon.ico']:
-                p = resource_path(name)
-                if os.path.exists(p):
-                    icon_path = p
-                    break
-        else:
-            # self.icon_path가 None 이어도 안전하게 처리
-            if self.icon_path and os.path.exists(self.icon_path):  # type: ignore[arg-type]
-                icon_path = self.icon_path
 
-        # ── macOS: AppKit 직접 호출 (plyer보다 안정적) ─────────
+        # ── macOS: osascript (가장 안정적) ─────────────────────
         if system == 'Darwin':
             try:
                 import subprocess
-                script = f'display notification "{message}" with title "{title}"'
+                # 특수문자 이스케이프
+                safe_msg   = message.replace('"', '\\"').replace("'", "\\'")
+                safe_title = title.replace('"', '\\"').replace("'", "\\'")
+                script = f'display notification "{safe_msg}" with title "{safe_title}"'
                 subprocess.run(['osascript', '-e', script], check=False, timeout=3)
                 print(f"[Pystray] 알림 전송 (osascript): {title}")
                 return
             except Exception as e:
-                print(f"[Pystray] osascript 알림 실패: {e}, plyer로 재시도")
+                print(f"[Pystray] osascript 알림 실패: {e}")
 
-        # ── Windows / 폴백: plyer ─────────────────────────────
+        # ── Windows: 4단계 폴백 ────────────────────────────────
+        if system == 'Windows':
+            # 1순위: winotify (Windows 10+ 네이티브 토스트, 가장 안정적)
+            try:
+                from winotify import Notification  # type: ignore
+                toast = Notification(app_id="Bell",
+                                     title=title,
+                                     msg=message,
+                                     duration="short")
+                toast.show()
+                print(f"[Pystray] 알림 전송 (winotify): {title}")
+                return
+            except Exception:
+                pass
+
+            # 2순위: plyer (아이콘 경로 없이 시도)
+            try:
+                notification.notify(
+                    title=title,
+                    message=message,
+                    app_name='Bell',
+                    timeout=5
+                )
+                print(f"[Pystray] 알림 전송 (plyer): {title}")
+                return
+            except Exception:
+                pass
+
+            # 3순위: win10toast
+            try:
+                from win10toast import ToastNotifier  # type: ignore
+                toaster = ToastNotifier()
+                toaster.show_toast(title, message, duration=5, threaded=True)
+                print(f"[Pystray] 알림 전송 (win10toast): {title}")
+                return
+            except Exception:
+                pass
+
+            # 4순위: ctypes WinAPI MessageBox (최후 수단)
+            try:
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(0, message, title, 0x40 | 0x1000)  # type: ignore[attr-defined]
+                print(f"[Pystray] 알림 전송 (MessageBox): {title}")
+                return
+            except Exception as e:
+                print(f"[Pystray] 모든 알림 방법 실패: {e}")
+            return
+
+        # ── 기타 플랫폼: plyer 폴백 ───────────────────────────
         try:
-            notification.notify(
-                title=title,
-                message=message,
-                app_name='Bell',
-                app_icon=icon_path,   # None 이면 plyer가 기본 아이콘 사용
-                timeout=5
-            )
-            print(f"[Pystray] 알림 전송 (plyer): {title}")
+            notification.notify(title=title, message=message, app_name='Bell', timeout=5)
+            print(f"[Pystray] 알림 전송 (plyer fallback): {title}")
         except Exception as e:
             print(f"[Pystray] 알림 출력 실패: {e}")
+
